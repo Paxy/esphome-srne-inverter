@@ -19,7 +19,11 @@ Subset of the V1.7 register map (`srne-hybrid-solar-inverter-modbus-protocol-v1-
 | 0x0111 | PV2 power | u16 | 1 | W | `pv2_power` |
 | — | (derived) | — | — | W | `pv_total_power` = pv1_power + pv2_power |
 
-## Block B — inverter (`0x0210`–`0x0224`, 21 regs, polled every cycle)
+## Block B — inverter (polled every cycle, split into two reads)
+
+Block B is issued as two separate reads (B1 + B2) because at least some SRNE firmware caps reads at 20 registers per request — the V1.7 PDF claims 32 but its own error code `0x0A` ("Length error") says "exceeds 12", and observed behaviour matches a 20-register cap (V1.0 PDF). A single 21-register read across `0x0210`–`0x0224` silently times out.
+
+### Block B1 — inverter main (`0x0210`–`0x021F`, 16 regs)
 
 | Reg | Name | Type | Mult | Unit | Sensor |
 |---|---|---|---|---|---|
@@ -36,6 +40,11 @@ Subset of the V1.7 register map (`srne-hybrid-solar-inverter-modbus-protocol-v1-
 | 0x021C | Load apparent power A | u16 | 1 | VA | `load_apparent_power` |
 | 0x021E | Battery charge current (mains) | u16 | 0.1 | A | `battery_charge_current` |
 | 0x021F | Load percent | u16 | 1 | % | `load_percent` |
+
+### Block B2 — heatsinks + PV charge (`0x0220`–`0x0224`, 5 regs)
+
+| Reg | Name | Type | Mult | Unit | Sensor |
+|---|---|---|---|---|---|
 | 0x0220 | Heat sink A (DC-DC) | i16 | 0.1 | °C | `heatsink_a_temperature` |
 | 0x0221 | Heat sink B (DC-AC) | i16 | 0.1 | °C | `heatsink_b_temperature` |
 | 0x0222 | Heat sink C (transformer) | i16 | 0.1 | °C | `heatsink_c_temperature` |

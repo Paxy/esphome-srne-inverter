@@ -14,10 +14,19 @@ static const uint16_t REG_BLOCK_A_START = 0x0100;
 static const uint16_t REG_BLOCK_A_COUNT = 0x12;
 static const uint8_t BLOCK_A_BYTE_COUNT = 0x24;
 
-// Block B: inverter — 0x0210..0x0224 (21 regs, 42 bytes)
-static const uint16_t REG_BLOCK_B_START = 0x0210;
-static const uint16_t REG_BLOCK_B_COUNT = 0x15;
-static const uint8_t BLOCK_B_BYTE_COUNT = 0x2A;
+// Block B is split in two because this firmware caps reads at 20 registers
+// (matches the V1.0 protocol doc; V1.7's "max 32" claim is contradicted by
+// error code 0x0A which says "exceeds 12" — observed limit is 20).
+//
+// Block B1: inverter main — 0x0210..0x021F (16 regs, 32 bytes)
+static const uint16_t REG_BLOCK_B1_START = 0x0210;
+static const uint16_t REG_BLOCK_B1_COUNT = 0x10;
+static const uint8_t BLOCK_B1_BYTE_COUNT = 0x20;
+
+// Block B2: heatsinks + PV charge — 0x0220..0x0224 (5 regs, 10 bytes)
+static const uint16_t REG_BLOCK_B2_START = 0x0220;
+static const uint16_t REG_BLOCK_B2_COUNT = 0x05;
+static const uint8_t BLOCK_B2_BYTE_COUNT = 0x0A;
 
 // Block C: faults — 0x0200..0x0207 (8 regs, 16 bytes)
 static const uint16_t REG_BLOCK_C_START = 0x0200;
@@ -79,14 +88,16 @@ void SrneInverter::update() {
   this->expected_steps_.push(0);
   this->send(FUNCTION_READ_HOLDING, REG_BLOCK_A_START, REG_BLOCK_A_COUNT);
   this->expected_steps_.push(1);
-  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B_START, REG_BLOCK_B_COUNT);
+  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B1_START, REG_BLOCK_B1_COUNT);
   this->expected_steps_.push(2);
+  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B2_START, REG_BLOCK_B2_COUNT);
+  this->expected_steps_.push(3);
   this->send(FUNCTION_READ_HOLDING, REG_BLOCK_C_START, REG_BLOCK_C_COUNT);
 
   if ((this->update_counter_ % PRODUCT_INFO_INTERVAL) == 0) {
-    this->expected_steps_.push(3);
-    this->send(FUNCTION_READ_HOLDING, REG_BLOCK_D_START, REG_BLOCK_D_COUNT);
     this->expected_steps_.push(4);
+    this->send(FUNCTION_READ_HOLDING, REG_BLOCK_D_START, REG_BLOCK_D_COUNT);
+    this->expected_steps_.push(5);
     this->send(FUNCTION_READ_HOLDING, REG_BLOCK_E_START, REG_BLOCK_E_COUNT);
   }
   this->update_counter_++;
@@ -139,15 +150,18 @@ void SrneInverter::on_modbus_data(const std::vector<uint8_t> &data) {
       if (byte_count == BLOCK_A_BYTE_COUNT) this->decode_block_a_(payload, byte_count);
       break;
     case 1:
-      if (byte_count == BLOCK_B_BYTE_COUNT) this->decode_block_b_(payload, byte_count);
+      if (byte_count == BLOCK_B1_BYTE_COUNT) this->decode_block_b1_(payload, byte_count);
       break;
     case 2:
-      if (byte_count == BLOCK_C_BYTE_COUNT) this->decode_block_c_(payload, byte_count);
+      if (byte_count == BLOCK_B2_BYTE_COUNT) this->decode_block_b2_(payload, byte_count);
       break;
     case 3:
-      if (byte_count == BLOCK_D_BYTE_COUNT) this->decode_block_d_(payload, byte_count);
+      if (byte_count == BLOCK_C_BYTE_COUNT) this->decode_block_c_(payload, byte_count);
       break;
     case 4:
+      if (byte_count == BLOCK_D_BYTE_COUNT) this->decode_block_d_(payload, byte_count);
+      break;
+    case 5:
       if (byte_count == BLOCK_E_BYTE_COUNT) this->decode_block_e_(payload, byte_count);
       break;
   }
@@ -185,9 +199,10 @@ void SrneInverter::decode_block_a_(const uint8_t *p, size_t /*byte_count*/) {
   this->publish_state_(this->pv_total_power_sensor_, (float) (pv1_w + pv2_w));
 }
 
-void SrneInverter::decode_block_b_(const uint8_t *p, size_t byte_count) {
-  if (byte_count < BLOCK_B_BYTE_COUNT) return;
+void SrneInverter::decode_block_b1_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < BLOCK_B1_BYTE_COUNT) return;
 
+  // Offsets from 0x0210 (this block covers 0x0210..0x021F)
   uint16_t machine_state = get_u16(p, 0);
   uint16_t grid_voltage_raw = get_u16(p, 6);
 
@@ -200,8 +215,7 @@ void SrneInverter::decode_block_b_(const uint8_t *p, size_t byte_count) {
   bool inverter_on = (machine_state == 5) || (machine_state == 7);
   this->publish_state_(this->inverter_on_binary_sensor_, inverter_on);
 
-  // Offsets from 0x0210:
-  // 0x0210 state (text), 0x0211 password mark (skip)
+  // 0x0210 state (text above), 0x0211 password mark (skip)
   // 0x0212 bus V, 0x0213 grid V, 0x0214 grid I, 0x0215 grid Hz x0.01
   this->publish_state_(this->bus_voltage_sensor_, get_u16(p, 4) * 0.1f);
   this->publish_state_(this->grid_voltage_sensor_, grid_voltage_raw * 0.1f);
@@ -218,12 +232,17 @@ void SrneInverter::decode_block_b_(const uint8_t *p, size_t byte_count) {
   // 0x021E battery charge I, 0x021F load %
   this->publish_state_(this->battery_charge_current_sensor_, get_u16(p, 28) * 0.1f);
   this->publish_state_(this->load_percent_sensor_, (float) get_u16(p, 30));
-  // 0x0220-0x0222 heatsinks A/B/C (signed, x0.1), 0x0223 D (gray skip)
-  this->publish_state_(this->heatsink_a_temperature_sensor_, get_i16(p, 32) * 0.1f);
-  this->publish_state_(this->heatsink_b_temperature_sensor_, get_i16(p, 34) * 0.1f);
-  this->publish_state_(this->heatsink_c_temperature_sensor_, get_i16(p, 36) * 0.1f);
-  // 0x0224 PV charge I
-  this->publish_state_(this->pv_charge_current_sensor_, get_u16(p, 40) * 0.1f);
+}
+
+void SrneInverter::decode_block_b2_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < BLOCK_B2_BYTE_COUNT) return;
+
+  // Offsets from 0x0220 (this block covers 0x0220..0x0224)
+  // 0x0220-0x0222 heatsinks A/B/C (signed, x0.1), 0x0223 D (gray skip), 0x0224 PV charge I
+  this->publish_state_(this->heatsink_a_temperature_sensor_, get_i16(p, 0) * 0.1f);
+  this->publish_state_(this->heatsink_b_temperature_sensor_, get_i16(p, 2) * 0.1f);
+  this->publish_state_(this->heatsink_c_temperature_sensor_, get_i16(p, 4) * 0.1f);
+  this->publish_state_(this->pv_charge_current_sensor_, get_u16(p, 8) * 0.1f);
 }
 
 void SrneInverter::decode_block_c_(const uint8_t *p, size_t byte_count) {
