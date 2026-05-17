@@ -231,6 +231,10 @@ switch:
       name: "Overload Auto Restart"
     overheat_auto_restart:
       name: "Overheat Auto Restart"
+    buzzer_alarm:
+      name: "Buzzer Alarm"
+    inverter_to_bypass:
+      name: "Inverter to Bypass"
 
 # Writable settings — exposed via Modbus function 0x06. Optional; only the
 # entities you configure get polled (settings poll runs every ~5 minutes).
@@ -243,6 +247,10 @@ select:
       name: "Charge Priority"
     battery_type:
       name: "Battery Type"
+    ac_input_voltage_range:
+      name: "AC Input Voltage Range"
+    parallel_mode:
+      name: "Parallel Mode"
 
 number:
   - platform: srne_inverter
@@ -253,6 +261,18 @@ number:
       name: "Mains Charge Current Limit"
     output_voltage:
       name: "Output Voltage"
+
+    # SOC thresholds (BMS communication must be working for these to take effect)
+    soc_discharge_alarm:
+      name: "SOC Discharge Alarm"
+    soc_discharge_cutoff:
+      name: "SOC Discharge Cutoff"
+    soc_charge_cutoff:
+      name: "SOC Charge Cutoff"
+    soc_switch_to_mains:
+      name: "SOC Switch to Mains"
+    soc_switch_to_inverter:
+      name: "SOC Switch to Inverter"
 
 # AtomS3R LCD: ST7789V 128x128 over SPI
 spi:

@@ -12,6 +12,8 @@ SrneSelect = srne_inverter_ns.class_("SrneSelect", select.Select, cg.Component)
 CONF_OUTPUT_PRIORITY = "output_priority"
 CONF_CHARGE_PRIORITY = "charge_priority"
 CONF_BATTERY_TYPE = "battery_type"
+CONF_AC_INPUT_VOLTAGE_RANGE = "ac_input_voltage_range"
+CONF_PARALLEL_MODE = "parallel_mode"
 
 # Order MUST match the inverter's enum values — index in this list is the raw
 # value written to the register.
@@ -41,10 +43,30 @@ BATTERY_TYPE_OPTIONS = [
     "Ternary N14",        # 14
 ]
 
+#   0xE20B AC input voltage range, per §5.2 menu item 03:
+#   0=UPS (output 120/110V → range 90-140V), 1=APL (output 100/105V → range 85-140V)
+AC_INPUT_VOLTAGE_RANGE_OPTIONS = ["UPS", "APL"]
+
+#   0xE201 Parallel mode, per §5.2 menu item 31:
+#   0=SIG single inverter, 1=PAL parallel, 2/3/4=two-phase P0/P1/P2,
+#   5/6/7=three-phase P1/P2/P3
+PARALLEL_MODE_OPTIONS = [
+    "SIG (single)",          # 0
+    "PAL (parallel)",        # 1
+    "2P0 (two-phase P0)",    # 2
+    "2P1 (two-phase P1)",    # 3
+    "2P2 (two-phase P2)",    # 4
+    "3P1 (three-phase P1)",  # 5
+    "3P2 (three-phase P2)",  # 6
+    "3P3 (three-phase P3)",  # 7
+]
+
 # Register addresses (kept in sync with srne_inverter.cpp REG_* constants)
 REG_OUTPUT_PRIORITY = 0xE204
 REG_CHARGE_PRIORITY = 0xE20F
 REG_BATTERY_TYPE = 0xE004
+REG_AC_INPUT_VOLTAGE_RANGE = 0xE20B
+REG_PARALLEL_MODE = 0xE201
 
 CONFIG_SCHEMA = SRNE_INVERTER_COMPONENT_SCHEMA.extend(
     {
@@ -62,6 +84,16 @@ CONFIG_SCHEMA = SRNE_INVERTER_COMPONENT_SCHEMA.extend(
             SrneSelect,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:car-battery",
+        ),
+        cv.Optional(CONF_AC_INPUT_VOLTAGE_RANGE): select.select_schema(
+            SrneSelect,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon="mdi:sine-wave",
+        ),
+        cv.Optional(CONF_PARALLEL_MODE): select.select_schema(
+            SrneSelect,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon="mdi:connection",
         ),
     }
 )
@@ -95,3 +127,16 @@ async def to_code(config):
             config[CONF_BATTERY_TYPE], BATTERY_TYPE_OPTIONS, REG_BATTERY_TYPE, hub
         )
         cg.add(hub.set_battery_type_select(sel))
+
+    if CONF_AC_INPUT_VOLTAGE_RANGE in config:
+        sel = await _make_select(
+            config[CONF_AC_INPUT_VOLTAGE_RANGE], AC_INPUT_VOLTAGE_RANGE_OPTIONS,
+            REG_AC_INPUT_VOLTAGE_RANGE, hub
+        )
+        cg.add(hub.set_ac_input_voltage_range_select(sel))
+
+    if CONF_PARALLEL_MODE in config:
+        sel = await _make_select(
+            config[CONF_PARALLEL_MODE], PARALLEL_MODE_OPTIONS, REG_PARALLEL_MODE, hub
+        )
+        cg.add(hub.set_parallel_mode_select(sel))

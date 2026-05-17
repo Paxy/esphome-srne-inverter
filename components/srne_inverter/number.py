@@ -19,11 +19,24 @@ SrneNumber = srne_inverter_ns.class_("SrneNumber", number.Number, cg.Component)
 CONF_MAX_CHARGE_CURRENT = "max_charge_current"
 CONF_MAINS_CHARGE_CURRENT_LIMIT = "mains_charge_current_limit"
 CONF_OUTPUT_VOLTAGE = "output_voltage"
+CONF_SOC_DISCHARGE_ALARM = "soc_discharge_alarm"
+CONF_SOC_DISCHARGE_CUTOFF = "soc_discharge_cutoff"
+CONF_SOC_CHARGE_CUTOFF = "soc_charge_cutoff"
+CONF_SOC_SWITCH_TO_MAINS = "soc_switch_to_mains"
+CONF_SOC_SWITCH_TO_INVERTER = "soc_switch_to_inverter"
 
 # Register addresses + per-register defaults (kept in sync with REG_* in cpp)
 REG_MAX_CHARGE_CURRENT = 0xE20A          # 0..150 A, scale 0.1
 REG_MAINS_CHARGE_CURRENT_LIMIT = 0xE205  # 0..100 A, scale 0.1
 REG_OUTPUT_VOLTAGE = 0xE208              # 100..264 V, scale 0.1
+
+# SOC thresholds (per §5.2 menu items 58-62; addresses tentative — calibrated
+# from scan values matching defaults; please verify against your firmware).
+REG_SOC_DISCHARGE_ALARM = 0xE01E    # menu 58, default 15%
+REG_SOC_DISCHARGE_CUTOFF = 0xE00F   # menu 59, default 5%
+REG_SOC_CHARGE_CUTOFF = 0xE01D      # menu 60, default 100%
+REG_SOC_SWITCH_TO_MAINS = 0xE01F    # menu 61, default 10%
+REG_SOC_SWITCH_TO_INVERTER = 0xE020 # menu 62, default 100%
 
 CONFIG_SCHEMA = SRNE_INVERTER_COMPONENT_SCHEMA.extend(
     {
@@ -47,6 +60,36 @@ CONFIG_SCHEMA = SRNE_INVERTER_COMPONENT_SCHEMA.extend(
             device_class=DEVICE_CLASS_VOLTAGE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:sine-wave",
+        ),
+        cv.Optional(CONF_SOC_DISCHARGE_ALARM): number.number_schema(
+            SrneNumber,
+            unit_of_measurement="%",
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon="mdi:battery-alert",
+        ),
+        cv.Optional(CONF_SOC_DISCHARGE_CUTOFF): number.number_schema(
+            SrneNumber,
+            unit_of_measurement="%",
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon="mdi:battery-off",
+        ),
+        cv.Optional(CONF_SOC_CHARGE_CUTOFF): number.number_schema(
+            SrneNumber,
+            unit_of_measurement="%",
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon="mdi:battery-charging-100",
+        ),
+        cv.Optional(CONF_SOC_SWITCH_TO_MAINS): number.number_schema(
+            SrneNumber,
+            unit_of_measurement="%",
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon="mdi:transmission-tower-import",
+        ),
+        cv.Optional(CONF_SOC_SWITCH_TO_INVERTER): number.number_schema(
+            SrneNumber,
+            unit_of_measurement="%",
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon="mdi:home-battery",
         ),
     }
 )
@@ -104,3 +147,18 @@ async def to_code(config):
             hub=hub,
         )
         cg.add(hub.set_output_voltage_number(n))
+
+    soc_specs = [
+        (CONF_SOC_DISCHARGE_ALARM, REG_SOC_DISCHARGE_ALARM, hub.set_soc_discharge_alarm_number),
+        (CONF_SOC_DISCHARGE_CUTOFF, REG_SOC_DISCHARGE_CUTOFF, hub.set_soc_discharge_cutoff_number),
+        (CONF_SOC_CHARGE_CUTOFF, REG_SOC_CHARGE_CUTOFF, hub.set_soc_charge_cutoff_number),
+        (CONF_SOC_SWITCH_TO_MAINS, REG_SOC_SWITCH_TO_MAINS, hub.set_soc_switch_to_mains_number),
+        (CONF_SOC_SWITCH_TO_INVERTER, REG_SOC_SWITCH_TO_INVERTER, hub.set_soc_switch_to_inverter_number),
+    ]
+    for key, reg, setter in soc_specs:
+        if key in config:
+            n = await _make_number(
+                config[key], min_value=0, max_value=100, step=1,
+                register_addr=reg, scale=1.0, hub=hub,
+            )
+            cg.add(setter(n))

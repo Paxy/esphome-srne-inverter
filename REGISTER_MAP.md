@@ -88,6 +88,50 @@ Polled only if `overload_auto_restart` or `overheat_auto_restart` switch is conf
 | 0xE20D | Overload auto restart | 0=disable, 1=enable | `switch.overload_auto_restart` |
 | 0xE20E | Over-temperature auto restart | 0=disable, 1=enable | `switch.overheat_auto_restart` |
 
+### Block H1 — AC input voltage range (`0xE20B`, 1 reg)
+
+| Raw | Mode | Range |
+|---|---|---|
+| 0 | UPS (default) | 90-140 V (for 120/110 V output) |
+| 1 | APL | 85-140 V (for 100/105 V output) |
+
+### Block H2 — buzzer + bypass switches (`0xE210`–`0xE212`, 3 regs)
+
+| Reg | Name | Entity |
+|---|---|---|
+| 0xE210 | Buzzer alarm | `switch.buzzer_alarm` |
+| 0xE211 | Alarm-on-input-interrupted (not exposed) | — |
+| 0xE212 | Inverter-to-bypass switch | `switch.inverter_to_bypass` |
+
+### Block H3 — Parallel mode (`0xE201`, 1 reg, per §5.2 menu item 31)
+
+| Raw | Mode |
+|---|---|
+| 0 | SIG (single inverter) |
+| 1 | PAL (parallel) |
+| 2-4 | 2P0 / 2P1 / 2P2 (two-phase) |
+| 5-7 | 3P1 / 3P2 / 3P3 (three-phase) |
+
+### Block H4 — SOC discharge cutoff (`0xE00F`, 1 reg)
+
+Per §5.2 menu item 59. The V1.7 PDF labels this register as a packed
+"Charge cut-off SOC, discharge cut-off SOC" but on this firmware it
+seems to hold just the discharge cutoff (scan value 5 matches the
+menu default).
+
+### Block H5 — other SOC thresholds (`0xE01D`–`0xE020`, 4 regs)
+
+Register addresses are **tentative** — calibrated from scan values matching the manual's defaults. Verify against your firmware before trusting; the manual doesn't publish register addresses for menu items.
+
+| Reg | Menu | Default | Entity |
+|---|---|---|---|
+| 0xE01D | 60 SOC charge cutoff | 100% | `number.soc_charge_cutoff` |
+| 0xE01E | 58 SOC discharge alarm | 15% | `number.soc_discharge_alarm` |
+| 0xE01F | 61 SOC switch to mains | 10% | `number.soc_switch_to_mains` |
+| 0xE020 | 62 SOC switch to inverter | 100% | `number.soc_switch_to_inverter` |
+
+> SOC settings only take effect when BMS communication is working (menu item 32 = `485` and item 33 = appropriate protocol).
+
 ### Block G — Battery type (`0xE004`, 1 reg)
 
 Polled only if `battery_type` select is configured. Per §5.2 menu item 08 of the user manual.

@@ -103,9 +103,20 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   void set_eco_mode_switch(switch_::Switch *s) { eco_mode_switch_ = s; }
   void set_overload_auto_restart_switch(switch_::Switch *s) { overload_auto_restart_switch_ = s; }
   void set_overheat_auto_restart_switch(switch_::Switch *s) { overheat_auto_restart_switch_ = s; }
+  void set_buzzer_alarm_switch(switch_::Switch *s) { buzzer_alarm_switch_ = s; }
+  void set_inverter_to_bypass_switch(switch_::Switch *s) { inverter_to_bypass_switch_ = s; }
 
   // Selects
   void set_battery_type_select(select::Select *s) { battery_type_select_ = s; }
+  void set_ac_input_voltage_range_select(select::Select *s) { ac_input_voltage_range_select_ = s; }
+  void set_parallel_mode_select(select::Select *s) { parallel_mode_select_ = s; }
+
+  // SOC threshold numbers
+  void set_soc_discharge_alarm_number(number::Number *n) { soc_discharge_alarm_number_ = n; }
+  void set_soc_discharge_cutoff_number(number::Number *n) { soc_discharge_cutoff_number_ = n; }
+  void set_soc_charge_cutoff_number(number::Number *n) { soc_charge_cutoff_number_ = n; }
+  void set_soc_switch_to_mains_number(number::Number *n) { soc_switch_to_mains_number_ = n; }
+  void set_soc_switch_to_inverter_number(number::Number *n) { soc_switch_to_inverter_number_ = n; }
 
   // Exposed so the SrneSelect / SrneNumber subclasses can ask the hub to
   // write back a value when the user changes a control in HA.
@@ -205,13 +216,24 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   number::Number *mains_charge_current_limit_number_{nullptr};
   number::Number *output_voltage_number_{nullptr};
 
-  // Switches (writable, read back from settings block F4/F6)
+  // Switches (writable, read back from settings blocks F4/F6/H2)
   switch_::Switch *eco_mode_switch_{nullptr};
   switch_::Switch *overload_auto_restart_switch_{nullptr};
   switch_::Switch *overheat_auto_restart_switch_{nullptr};
+  switch_::Switch *buzzer_alarm_switch_{nullptr};
+  switch_::Switch *inverter_to_bypass_switch_{nullptr};
 
-  // Battery type select (writable, read back from a single-reg block at 0xE004)
+  // Selects (writable, read back from settings blocks G/H1/H3)
   select::Select *battery_type_select_{nullptr};
+  select::Select *ac_input_voltage_range_select_{nullptr};
+  select::Select *parallel_mode_select_{nullptr};
+
+  // SOC threshold numbers (writable, read back from blocks H4/H5)
+  number::Number *soc_discharge_alarm_number_{nullptr};
+  number::Number *soc_discharge_cutoff_number_{nullptr};
+  number::Number *soc_charge_cutoff_number_{nullptr};
+  number::Number *soc_switch_to_mains_number_{nullptr};
+  number::Number *soc_switch_to_inverter_number_{nullptr};
 
   uint8_t no_response_count_{0};
   uint32_t update_counter_{0};
@@ -240,6 +262,11 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   void decode_block_f5_(const uint8_t *payload, size_t byte_count);
   void decode_block_f6_(const uint8_t *payload, size_t byte_count);
   void decode_block_g_(const uint8_t *payload, size_t byte_count);
+  void decode_block_h1_(const uint8_t *payload, size_t byte_count);
+  void decode_block_h2_(const uint8_t *payload, size_t byte_count);
+  void decode_block_h3_(const uint8_t *payload, size_t byte_count);
+  void decode_block_h4_(const uint8_t *payload, size_t byte_count);
+  void decode_block_h5_(const uint8_t *payload, size_t byte_count);
   void decode_block_c_(const uint8_t *payload, size_t byte_count);
   void decode_block_d_(const uint8_t *payload, size_t byte_count);
   void decode_block_e_(const uint8_t *payload, size_t byte_count);

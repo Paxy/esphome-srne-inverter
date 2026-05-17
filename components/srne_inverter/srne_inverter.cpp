@@ -102,6 +102,34 @@ static const uint16_t REG_BLOCK_G_START = 0xE004;
 static const uint16_t REG_BLOCK_G_COUNT = 0x01;
 static const uint8_t BLOCK_G_BYTE_COUNT = 0x02;
 
+// Block H1: 0xE20B (1 reg) — AC input voltage range (UPS / APL)
+static const uint16_t REG_BLOCK_H1_START = 0xE20B;
+static const uint16_t REG_BLOCK_H1_COUNT = 0x01;
+static const uint8_t BLOCK_H1_BYTE_COUNT = 0x02;
+
+// Block H2: 0xE210..0xE212 (3 regs) — buzzer_alarm + alarm_when_interrupted (skip) + inverter_to_bypass
+static const uint16_t REG_BLOCK_H2_START = 0xE210;
+static const uint16_t REG_BLOCK_H2_COUNT = 0x03;
+static const uint8_t BLOCK_H2_BYTE_COUNT = 0x06;
+
+// Block H3: 0xE201 (1 reg) — parallel mode (SIG/PAL/2P0/2P1/2P2/3P1/3P2/3P3)
+static const uint16_t REG_BLOCK_H3_START = 0xE201;
+static const uint16_t REG_BLOCK_H3_COUNT = 0x01;
+static const uint8_t BLOCK_H3_BYTE_COUNT = 0x02;
+
+// Block H4: 0xE00F (1 reg) — SOC discharge cutoff (per V1.7 PDF labeled
+// "Charge cut-off SOC, discharge cut-off SOC" packed; on this firmware
+// the scan value 5 matches the manual's item-59 default 5%).
+static const uint16_t REG_BLOCK_H4_START = 0xE00F;
+static const uint16_t REG_BLOCK_H4_COUNT = 0x01;
+static const uint8_t BLOCK_H4_BYTE_COUNT = 0x02;
+
+// Block H5: 0xE01D..0xE020 (4 regs) — SOC charge cutoff / discharge alarm /
+// switch to mains / switch to inverter (tentative mapping from scan + manual).
+static const uint16_t REG_BLOCK_H5_START = 0xE01D;
+static const uint16_t REG_BLOCK_H5_COUNT = 0x04;
+static const uint8_t BLOCK_H5_BYTE_COUNT = 0x08;
+
 // Settings registers we may write to (function 0x06)
 static const uint16_t REG_OUTPUT_PRIORITY = 0xE204;
 static const uint16_t REG_MAINS_CHARGE_CURRENT_LIMIT = 0xE205;
@@ -112,6 +140,15 @@ static const uint16_t REG_OVERLOAD_AUTO_RESTART = 0xE20D;
 static const uint16_t REG_OVERHEAT_AUTO_RESTART = 0xE20E;
 static const uint16_t REG_CHARGE_PRIORITY = 0xE20F;
 static const uint16_t REG_BATTERY_TYPE = 0xE004;
+static const uint16_t REG_AC_INPUT_VOLTAGE_RANGE = 0xE20B;
+static const uint16_t REG_BUZZER_ALARM = 0xE210;
+static const uint16_t REG_INVERTER_TO_BYPASS = 0xE212;
+static const uint16_t REG_PARALLEL_MODE = 0xE201;
+static const uint16_t REG_SOC_DISCHARGE_CUTOFF = 0xE00F;
+static const uint16_t REG_SOC_CHARGE_CUTOFF = 0xE01D;
+static const uint16_t REG_SOC_DISCHARGE_ALARM = 0xE01E;
+static const uint16_t REG_SOC_SWITCH_TO_MAINS = 0xE01F;
+static const uint16_t REG_SOC_SWITCH_TO_INVERTER = 0xE020;
 
 // Sentinel step id for register-scan replies (anything not in 0..8 normal steps).
 static const uint8_t SCAN_STEP = 0xFF;
@@ -346,6 +383,34 @@ void SrneInverter::update() {
       this->expected_steps_.push(14);
       this->send(FUNCTION_READ_HOLDING, REG_BLOCK_G_START, REG_BLOCK_G_COUNT);
     }
+    // Block H1: ac_input_voltage_range
+    if (this->ac_input_voltage_range_select_ != nullptr) {
+      this->expected_steps_.push(15);
+      this->send(FUNCTION_READ_HOLDING, REG_BLOCK_H1_START, REG_BLOCK_H1_COUNT);
+    }
+    // Block H2: buzzer_alarm + inverter_to_bypass (skip middle reg 0xE211)
+    if (this->buzzer_alarm_switch_ != nullptr || this->inverter_to_bypass_switch_ != nullptr) {
+      this->expected_steps_.push(16);
+      this->send(FUNCTION_READ_HOLDING, REG_BLOCK_H2_START, REG_BLOCK_H2_COUNT);
+    }
+    // Block H3: parallel_mode
+    if (this->parallel_mode_select_ != nullptr) {
+      this->expected_steps_.push(17);
+      this->send(FUNCTION_READ_HOLDING, REG_BLOCK_H3_START, REG_BLOCK_H3_COUNT);
+    }
+    // Block H4: SOC discharge cutoff
+    if (this->soc_discharge_cutoff_number_ != nullptr) {
+      this->expected_steps_.push(18);
+      this->send(FUNCTION_READ_HOLDING, REG_BLOCK_H4_START, REG_BLOCK_H4_COUNT);
+    }
+    // Block H5: the other 4 SOC thresholds
+    if (this->soc_charge_cutoff_number_ != nullptr ||
+        this->soc_discharge_alarm_number_ != nullptr ||
+        this->soc_switch_to_mains_number_ != nullptr ||
+        this->soc_switch_to_inverter_number_ != nullptr) {
+      this->expected_steps_.push(19);
+      this->send(FUNCTION_READ_HOLDING, REG_BLOCK_H5_START, REG_BLOCK_H5_COUNT);
+    }
   }
   this->update_counter_++;
 }
@@ -479,6 +544,21 @@ void SrneInverter::on_modbus_data(const std::vector<uint8_t> &data) {
       break;
     case 14:
       if (byte_count == BLOCK_G_BYTE_COUNT) this->decode_block_g_(payload, byte_count);
+      break;
+    case 15:
+      if (byte_count == BLOCK_H1_BYTE_COUNT) this->decode_block_h1_(payload, byte_count);
+      break;
+    case 16:
+      if (byte_count == BLOCK_H2_BYTE_COUNT) this->decode_block_h2_(payload, byte_count);
+      break;
+    case 17:
+      if (byte_count == BLOCK_H3_BYTE_COUNT) this->decode_block_h3_(payload, byte_count);
+      break;
+    case 18:
+      if (byte_count == BLOCK_H4_BYTE_COUNT) this->decode_block_h4_(payload, byte_count);
+      break;
+    case 19:
+      if (byte_count == BLOCK_H5_BYTE_COUNT) this->decode_block_h5_(payload, byte_count);
       break;
   }
 
@@ -778,6 +858,55 @@ void SrneInverter::decode_block_g_(const uint8_t *p, size_t byte_count) {
   // 0xE004 battery_type (enum)
   if (this->battery_type_select_ != nullptr) {
     static_cast<SrneSelect *>(this->battery_type_select_)->publish_from_raw(get_u16(p, 0));
+  }
+}
+
+void SrneInverter::decode_block_h1_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < BLOCK_H1_BYTE_COUNT) return;
+  if (this->ac_input_voltage_range_select_ != nullptr) {
+    static_cast<SrneSelect *>(this->ac_input_voltage_range_select_)->publish_from_raw(get_u16(p, 0));
+  }
+}
+
+void SrneInverter::decode_block_h2_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < BLOCK_H2_BYTE_COUNT) return;
+  // 0xE210 buzzer_alarm, 0xE211 alarm_when_input_interrupted (skip), 0xE212 inverter_to_bypass
+  if (this->buzzer_alarm_switch_ != nullptr) {
+    static_cast<SrneSwitch *>(this->buzzer_alarm_switch_)->publish_from_raw(get_u16(p, 0));
+  }
+  if (this->inverter_to_bypass_switch_ != nullptr) {
+    static_cast<SrneSwitch *>(this->inverter_to_bypass_switch_)->publish_from_raw(get_u16(p, 4));
+  }
+}
+
+void SrneInverter::decode_block_h3_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < BLOCK_H3_BYTE_COUNT) return;
+  if (this->parallel_mode_select_ != nullptr) {
+    static_cast<SrneSelect *>(this->parallel_mode_select_)->publish_from_raw(get_u16(p, 0));
+  }
+}
+
+void SrneInverter::decode_block_h4_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < BLOCK_H4_BYTE_COUNT) return;
+  if (this->soc_discharge_cutoff_number_ != nullptr) {
+    static_cast<SrneNumber *>(this->soc_discharge_cutoff_number_)->publish_from_raw(get_u16(p, 0));
+  }
+}
+
+void SrneInverter::decode_block_h5_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < BLOCK_H5_BYTE_COUNT) return;
+  // 0xE01D charge_cutoff, 0xE01E discharge_alarm, 0xE01F switch_to_mains, 0xE020 switch_to_inverter
+  if (this->soc_charge_cutoff_number_ != nullptr) {
+    static_cast<SrneNumber *>(this->soc_charge_cutoff_number_)->publish_from_raw(get_u16(p, 0));
+  }
+  if (this->soc_discharge_alarm_number_ != nullptr) {
+    static_cast<SrneNumber *>(this->soc_discharge_alarm_number_)->publish_from_raw(get_u16(p, 2));
+  }
+  if (this->soc_switch_to_mains_number_ != nullptr) {
+    static_cast<SrneNumber *>(this->soc_switch_to_mains_number_)->publish_from_raw(get_u16(p, 4));
+  }
+  if (this->soc_switch_to_inverter_number_ != nullptr) {
+    static_cast<SrneNumber *>(this->soc_switch_to_inverter_number_)->publish_from_raw(get_u16(p, 6));
   }
 }
 
