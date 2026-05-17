@@ -179,14 +179,21 @@ void SrneInverter::update() {
   this->expected_steps_.push(2);
   this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B2_START, REG_BLOCK_B2_COUNT);
 
-  // Block B3 (L2 leg) is only polled if any L2 sensor is configured.
+  // Block B3 (L2 leg) is polled if any per-leg L2 sensor OR any L1+L2
+  // combined sensor is configured (the combined sensors are computed inside
+  // decode_block_b3_ from cached L1 values).
   bool want_b3 = this->grid_voltage_l2_sensor_ != nullptr ||
                  this->inverter_voltage_l2_sensor_ != nullptr ||
                  this->inverter_current_l2_sensor_ != nullptr ||
                  this->load_current_l2_sensor_ != nullptr ||
                  this->load_active_power_l2_sensor_ != nullptr ||
                  this->load_apparent_power_l2_sensor_ != nullptr ||
-                 this->load_percent_l2_sensor_ != nullptr;
+                 this->load_percent_l2_sensor_ != nullptr ||
+                 this->inverter_voltage_l1_l2_sensor_ != nullptr ||
+                 this->inverter_current_total_sensor_ != nullptr ||
+                 this->load_current_total_sensor_ != nullptr ||
+                 this->load_active_power_total_sensor_ != nullptr ||
+                 this->load_apparent_power_total_sensor_ != nullptr;
   if (want_b3) {
     this->expected_steps_.push(11);
     this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B3_START, REG_BLOCK_B3_COUNT);
