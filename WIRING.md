@@ -1,14 +1,26 @@
 # Wiring
 
-SRNE inverters expose RS485 (typically on an RJ45 jack labelled "RS485" or "BMS"). You need an RS485 transceiver between the ESP32's UART and the inverter's A/B lines.
+SRNE inverters expose RS485 on one or more RJ45 jacks. You need an RS485 transceiver between the ESP32's UART and the inverter's A/B lines.
 
-## Pinout (RJ45 — verify against your specific inverter manual)
+## Pinout — generic RJ45 (verify against your specific inverter manual)
 
 | Pin | Signal |
 |---|---|
 | 1   | RS485 A |
 | 2   | RS485 B |
 | 7-8 | GND     |
+
+## Pinout — "WIFI" RJ45 port (confirmed on real hardware)
+
+On the SRNE port labelled **WIFI** (the one normally used by the WiFi dongle), the pinout is different from the generic RS485 jack:
+
+| Pin | Signal |
+|---|---|
+| 2   | GND     |
+| 7   | RS485 A |
+| 8   | RS485 B |
+
+Confirmed working — this is the port to use if your inverter doesn't have a separate `RS485` jack or you'd rather leave the BMS port free.
 
 ## Transceiver
 
