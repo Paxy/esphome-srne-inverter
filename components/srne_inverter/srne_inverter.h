@@ -120,7 +120,8 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   void publish_state_(binary_sensor::BinarySensor *s, bool state);
   void publish_state_(text_sensor::TextSensor *s, const std::string &state);
   void decode_block_a_(const uint8_t *payload, size_t byte_count);
-  void decode_block_b1_(const uint8_t *payload, size_t byte_count);
+  void decode_block_b1a_(const uint8_t *payload, size_t byte_count);
+  void decode_block_b1b_(const uint8_t *payload, size_t byte_count);
   void decode_block_b2_(const uint8_t *payload, size_t byte_count);
   void decode_block_c_(const uint8_t *payload, size_t byte_count);
   void decode_block_d_(const uint8_t *payload, size_t byte_count);

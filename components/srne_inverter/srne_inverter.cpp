@@ -14,14 +14,21 @@ static const uint16_t REG_BLOCK_A_START = 0x0100;
 static const uint16_t REG_BLOCK_A_COUNT = 0x12;
 static const uint8_t BLOCK_A_BYTE_COUNT = 0x24;
 
-// Block B is split in two because this firmware caps reads at 20 registers
-// (matches the V1.0 protocol doc; V1.7's "max 32" claim is contradicted by
-// error code 0x0A which says "exceeds 12" — observed limit is 20).
+// Block B is split because this firmware silently drops reads that span the
+// password-protection status register at 0x0211 (PDF describes a password
+// gating mechanism on P02 and inverter returns no response across 0x0211).
+// Reads ≤20 registers that stay clear of 0x0211 work fine.
 //
-// Block B1: inverter main — 0x0210..0x021F (16 regs, 32 bytes)
-static const uint16_t REG_BLOCK_B1_START = 0x0210;
-static const uint16_t REG_BLOCK_B1_COUNT = 0x10;
-static const uint8_t BLOCK_B1_BYTE_COUNT = 0x20;
+// Block B1a: machine state — 0x0210 alone (1 reg, 2 bytes)
+static const uint16_t REG_BLOCK_B1A_START = 0x0210;
+static const uint16_t REG_BLOCK_B1A_COUNT = 0x01;
+static const uint8_t BLOCK_B1A_BYTE_COUNT = 0x02;
+
+// Block B1b: bus/grid/inverter/load — 0x0212..0x021F (14 regs, 28 bytes)
+// Skips 0x0211 (password protection status mark).
+static const uint16_t REG_BLOCK_B1B_START = 0x0212;
+static const uint16_t REG_BLOCK_B1B_COUNT = 0x0E;
+static const uint8_t BLOCK_B1B_BYTE_COUNT = 0x1C;
 
 // Block B2: heatsinks + PV charge — 0x0220..0x0224 (5 regs, 10 bytes)
 static const uint16_t REG_BLOCK_B2_START = 0x0220;
@@ -85,20 +92,36 @@ void SrneInverter::update() {
   }
   this->no_response_count_++;
 
+  // Always-on blocks (the basic readings)
   this->expected_steps_.push(0);
   this->send(FUNCTION_READ_HOLDING, REG_BLOCK_A_START, REG_BLOCK_A_COUNT);
   this->expected_steps_.push(1);
-  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B1_START, REG_BLOCK_B1_COUNT);
+  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B1A_START, REG_BLOCK_B1A_COUNT);
   this->expected_steps_.push(2);
-  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B2_START, REG_BLOCK_B2_COUNT);
+  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B1B_START, REG_BLOCK_B1B_COUNT);
   this->expected_steps_.push(3);
-  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_C_START, REG_BLOCK_C_COUNT);
+  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B2_START, REG_BLOCK_B2_COUNT);
+
+  // Block C (faults) is debug-only on some firmware variants and silently
+  // times out. Only poll if the user actually configured the fault sensors.
+  bool want_c = this->fault_binary_sensor_ != nullptr || this->fault_codes_text_sensor_ != nullptr;
+  if (want_c) {
+    this->expected_steps_.push(4);
+    this->send(FUNCTION_READ_HOLDING, REG_BLOCK_C_START, REG_BLOCK_C_COUNT);
+  }
 
   if ((this->update_counter_ % PRODUCT_INFO_INTERVAL) == 0) {
-    this->expected_steps_.push(4);
-    this->send(FUNCTION_READ_HOLDING, REG_BLOCK_D_START, REG_BLOCK_D_COUNT);
-    this->expected_steps_.push(5);
-    this->send(FUNCTION_READ_HOLDING, REG_BLOCK_E_START, REG_BLOCK_E_COUNT);
+    bool want_d = this->software_version_text_sensor_ != nullptr ||
+                  this->hardware_version_text_sensor_ != nullptr;
+    bool want_e = this->serial_number_text_sensor_ != nullptr;
+    if (want_d) {
+      this->expected_steps_.push(5);
+      this->send(FUNCTION_READ_HOLDING, REG_BLOCK_D_START, REG_BLOCK_D_COUNT);
+    }
+    if (want_e) {
+      this->expected_steps_.push(6);
+      this->send(FUNCTION_READ_HOLDING, REG_BLOCK_E_START, REG_BLOCK_E_COUNT);
+    }
   }
   this->update_counter_++;
 }
@@ -150,18 +173,21 @@ void SrneInverter::on_modbus_data(const std::vector<uint8_t> &data) {
       if (byte_count == BLOCK_A_BYTE_COUNT) this->decode_block_a_(payload, byte_count);
       break;
     case 1:
-      if (byte_count == BLOCK_B1_BYTE_COUNT) this->decode_block_b1_(payload, byte_count);
+      if (byte_count == BLOCK_B1A_BYTE_COUNT) this->decode_block_b1a_(payload, byte_count);
       break;
     case 2:
-      if (byte_count == BLOCK_B2_BYTE_COUNT) this->decode_block_b2_(payload, byte_count);
+      if (byte_count == BLOCK_B1B_BYTE_COUNT) this->decode_block_b1b_(payload, byte_count);
       break;
     case 3:
-      if (byte_count == BLOCK_C_BYTE_COUNT) this->decode_block_c_(payload, byte_count);
+      if (byte_count == BLOCK_B2_BYTE_COUNT) this->decode_block_b2_(payload, byte_count);
       break;
     case 4:
-      if (byte_count == BLOCK_D_BYTE_COUNT) this->decode_block_d_(payload, byte_count);
+      if (byte_count == BLOCK_C_BYTE_COUNT) this->decode_block_c_(payload, byte_count);
       break;
     case 5:
+      if (byte_count == BLOCK_D_BYTE_COUNT) this->decode_block_d_(payload, byte_count);
+      break;
+    case 6:
       if (byte_count == BLOCK_E_BYTE_COUNT) this->decode_block_e_(payload, byte_count);
       break;
   }
@@ -199,39 +225,43 @@ void SrneInverter::decode_block_a_(const uint8_t *p, size_t /*byte_count*/) {
   this->publish_state_(this->pv_total_power_sensor_, (float) (pv1_w + pv2_w));
 }
 
-void SrneInverter::decode_block_b1_(const uint8_t *p, size_t byte_count) {
-  if (byte_count < BLOCK_B1_BYTE_COUNT) return;
+void SrneInverter::decode_block_b1a_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < BLOCK_B1A_BYTE_COUNT) return;
 
-  // Offsets from 0x0210 (this block covers 0x0210..0x021F)
+  // 0x0210 machine state (1 reg)
   uint16_t machine_state = get_u16(p, 0);
-  uint16_t grid_voltage_raw = get_u16(p, 6);
-
   this->publish_state_(this->machine_state_text_sensor_, this->decode_machine_state_(machine_state));
-
-  // grid_present: heuristic, true when grid V > 50.0 V
-  this->publish_state_(this->grid_present_binary_sensor_, grid_voltage_raw > 500);
 
   // inverter_on: machine_state == 5 (Inverter powered) or 7 (Mains->Inverter)
   bool inverter_on = (machine_state == 5) || (machine_state == 7);
   this->publish_state_(this->inverter_on_binary_sensor_, inverter_on);
+}
 
-  // 0x0210 state (text above), 0x0211 password mark (skip)
+void SrneInverter::decode_block_b1b_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < BLOCK_B1B_BYTE_COUNT) return;
+
+  // Offsets from 0x0212 (this block covers 0x0212..0x021F)
   // 0x0212 bus V, 0x0213 grid V, 0x0214 grid I, 0x0215 grid Hz x0.01
-  this->publish_state_(this->bus_voltage_sensor_, get_u16(p, 4) * 0.1f);
+  uint16_t grid_voltage_raw = get_u16(p, 2);
+  this->publish_state_(this->bus_voltage_sensor_, get_u16(p, 0) * 0.1f);
   this->publish_state_(this->grid_voltage_sensor_, grid_voltage_raw * 0.1f);
-  this->publish_state_(this->grid_current_sensor_, get_u16(p, 8) * 0.1f);
-  this->publish_state_(this->grid_frequency_sensor_, get_u16(p, 10) * 0.01f);
+  this->publish_state_(this->grid_current_sensor_, get_u16(p, 4) * 0.1f);
+  this->publish_state_(this->grid_frequency_sensor_, get_u16(p, 6) * 0.01f);
+
+  // grid_present: heuristic, true when grid V > 50.0 V
+  this->publish_state_(this->grid_present_binary_sensor_, grid_voltage_raw > 500);
+
   // 0x0216 inverter V, 0x0217 inverter I, 0x0218 inverter Hz x0.01
-  this->publish_state_(this->inverter_voltage_sensor_, get_u16(p, 12) * 0.1f);
-  this->publish_state_(this->inverter_current_sensor_, get_u16(p, 14) * 0.1f);
-  this->publish_state_(this->inverter_frequency_sensor_, get_u16(p, 16) * 0.01f);
+  this->publish_state_(this->inverter_voltage_sensor_, get_u16(p, 8) * 0.1f);
+  this->publish_state_(this->inverter_current_sensor_, get_u16(p, 10) * 0.1f);
+  this->publish_state_(this->inverter_frequency_sensor_, get_u16(p, 12) * 0.01f);
   // 0x0219 load I, 0x021A load PF (gray skip), 0x021B load W, 0x021C load VA, 0x021D DC component (gray skip)
-  this->publish_state_(this->load_current_sensor_, get_u16(p, 18) * 0.1f);
-  this->publish_state_(this->load_active_power_sensor_, (float) get_u16(p, 22));
-  this->publish_state_(this->load_apparent_power_sensor_, (float) get_u16(p, 24));
+  this->publish_state_(this->load_current_sensor_, get_u16(p, 14) * 0.1f);
+  this->publish_state_(this->load_active_power_sensor_, (float) get_u16(p, 18));
+  this->publish_state_(this->load_apparent_power_sensor_, (float) get_u16(p, 20));
   // 0x021E battery charge I, 0x021F load %
-  this->publish_state_(this->battery_charge_current_sensor_, get_u16(p, 28) * 0.1f);
-  this->publish_state_(this->load_percent_sensor_, (float) get_u16(p, 30));
+  this->publish_state_(this->battery_charge_current_sensor_, get_u16(p, 24) * 0.1f);
+  this->publish_state_(this->load_percent_sensor_, (float) get_u16(p, 26));
 }
 
 void SrneInverter::decode_block_b2_(const uint8_t *p, size_t byte_count) {

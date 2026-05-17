@@ -19,15 +19,22 @@ Subset of the V1.7 register map (`srne-hybrid-solar-inverter-modbus-protocol-v1-
 | 0x0111 | PV2 power | u16 | 1 | W | `pv2_power` |
 | — | (derived) | — | — | W | `pv_total_power` = pv1_power + pv2_power |
 
-## Block B — inverter (polled every cycle, split into two reads)
+## Block B — inverter (polled every cycle, split into three reads)
 
-Block B is issued as two separate reads (B1 + B2) because at least some SRNE firmware caps reads at 20 registers per request — the V1.7 PDF claims 32 but its own error code `0x0A` ("Length error") says "exceeds 12", and observed behaviour matches a 20-register cap (V1.0 PDF). A single 21-register read across `0x0210`–`0x0224` silently times out.
+Block B is issued as three reads. Empirically on real hardware, reads spanning the password-protection status register at `0x0211` silently time out (no response, not a Modbus error). Splitting around that register works.
 
-### Block B1 — inverter main (`0x0210`–`0x021F`, 16 regs)
+### Block B1a — machine state (`0x0210`, 1 reg)
 
 | Reg | Name | Type | Mult | Unit | Sensor |
 |---|---|---|---|---|---|
 | 0x0210 | Machine state | u16 | — | enum | `machine_state` (text), `inverter_on` (binary) |
+
+### Block B1b — bus/grid/inverter/load (`0x0212`–`0x021F`, 14 regs)
+
+Skips `0x0211` (password protection status mark).
+
+| Reg | Name | Type | Mult | Unit | Sensor |
+|---|---|---|---|---|---|
 | 0x0212 | Bus voltage | u16 | 0.1 | V | `bus_voltage` |
 | 0x0213 | Grid voltage A | u16 | 0.1 | V | `grid_voltage`, `grid_present` (binary, > 50 V) |
 | 0x0214 | Grid current A | u16 | 0.1 | A | `grid_current` |
@@ -50,7 +57,9 @@ Block B is issued as two separate reads (B1 + B2) because at least some SRNE fir
 | 0x0222 | Heat sink C (transformer) | i16 | 0.1 | °C | `heatsink_c_temperature` |
 | 0x0224 | PV charge current | u16 | 0.1 | A | `pv_charge_current` |
 
-## Block C — faults (`0x0200`–`0x0207`, 8 regs, polled every cycle)
+## Block C — faults (`0x0200`–`0x0207`, 8 regs, polled only if a fault sensor is configured)
+
+The PDF tags this register range as "used by the internal debug tool". On at least some SRNE firmware versions the range is not exposed (silent timeout, no Modbus error). To avoid noise we only poll Block C when the user has configured `fault` or `fault_codes` — same for Block D (versions) and Block E (serial), which are only polled when their text sensors are configured.
 
 | Reg | Name | Sensor |
 |---|---|---|
