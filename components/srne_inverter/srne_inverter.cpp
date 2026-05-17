@@ -111,6 +111,66 @@ static inline int16_t get_i16(const uint8_t *p, size_t i) {
   return (int16_t) get_u16(p, i);
 }
 
+// Fault code → symbolic name, per §7.1 of the SRNE 12KW user manual.
+// Returns nullptr for unknown codes (so the caller can fall back to a numeric
+// label and we can identify and add it later).
+static const char *fault_code_name_(uint16_t code) {
+  switch (code) {
+    case  1: return "BatVoltLow";
+    case  2: return "BatOverCurrSw";
+    case  3: return "BatOpen";
+    case  4: return "BatLowEod";
+    case  5: return "BatOverCurrHw";
+    case  6: return "BatOverVolt";
+    case  7: return "BusOverVoltHw";
+    case  8: return "BusOverVoltSw";
+    case  9: return "PvVoltHigh";
+    case 10: return "PvBoostOCSw";
+    case 11: return "PvBoostOCHw";
+    case 12: return "SpiCommErr";
+    case 13: return "OverloadBypass";
+    case 14: return "OverloadInverter";
+    case 15: return "AcOverCurrHw";
+    case 16: return "AuxDSpReqOffPWM";
+    case 17: return "InvShort";
+    case 18: return "BusSoftFailed";
+    case 19: return "OverTemperMppt";
+    case 20: return "OverTemperInv";
+    case 21: return "FanFail";
+    case 22: return "EEPROM";
+    case 23: return "ModelNumErr";
+    case 24: return "BusDiff";
+    case 25: return "BusShort";
+    case 26: return "RlyShort";
+    case 28: return "LinePhaseErr";
+    case 29: return "BusVoltLow";
+    case 30: return "BatCapacityLow1";
+    case 31: return "BatCapacityLow2";
+    case 32: return "BatCapacityLowStop";
+    case 34: return "CanCommFault";
+    case 35: return "ParaAddrErr";
+    case 36: return "BalanceCurrentOC";
+    case 37: return "ParaShareCurrErr";
+    case 38: return "ParaBattVoltDiff";
+    case 39: return "ParaAcSrcDiff";
+    case 40: return "ParaHwSynErr";
+    case 41: return "InvDcVoltErr";
+    case 42: return "SysFwVersionDiff";
+    case 43: return "ParaLineContErr";
+    case 44: return "SerialNumberError";
+    case 45: return "SplitPhaseModeSettingErr";
+    case 56: return "LowInsulationResistance";
+    case 57: return "LeakageCurrentOverload";
+    case 58: return "BMSComErr";
+    case 60: return "BMSUnderTem";
+    case 61: return "BMSOverTem";
+    case 62: return "BMSOverCur";
+    case 63: return "BMSUnderVolt";
+    case 64: return "BMSOverVolt";
+    default: return nullptr;
+  }
+}
+
 void SrneInverter::dump_config() {
   ESP_LOGCONFIG(TAG, "SRNE Inverter:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
@@ -491,13 +551,20 @@ void SrneInverter::decode_block_c_(const uint8_t *p, size_t byte_count) {
   }
   this->publish_state_(this->fault_binary_sensor_, fault);
 
-  // 0x0204..0x0207: 4 fault codes, each 1 register
+  // 0x0204..0x0207: 4 active fault codes, each 1 register. Each decoded to
+  // the symbolic name from the inverter's user manual; unknown codes fall
+  // back to the raw number so we can identify and add them later.
   std::string codes;
   for (size_t i = 0; i < 4; i++) {
     uint16_t code = get_u16(p, 8 + i * 2);
     if (code != 0) {
       if (!codes.empty()) codes += ";";
-      codes += str_sprintf("%u", code);
+      const char *name = fault_code_name_(code);
+      if (name != nullptr) {
+        codes += name;
+      } else {
+        codes += str_sprintf("Fault%u", code);
+      }
     }
   }
   if (codes.empty()) codes = "None";
