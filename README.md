@@ -8,8 +8,11 @@ Read-only support for battery, PV, grid, inverter, load, heatsink temperatures, 
 
 1. Wire your ESP32 to the inverter's RS485 port (see [WIRING.md](WIRING.md)).
 2. Copy `secrets.yaml.example` to `secrets.yaml` and fill in your Wi-Fi credentials.
-3. Use `esp32-example.yaml` as your starting point (or reference it via `external_components:` from a fresh ESPHome config).
-4. `esphome run esp32-example.yaml`.
+3. Pick a starting-point YAML:
+   - `esp32-example.yaml` — generic ESP32 DevKit (Arduino framework)
+   - `esp32s3-example.yaml` — generic ESP32-S3 DevKit (ESP-IDF)
+   - `atoms3r-example.yaml` — M5Stack AtomS3R, with LCD live-status and RGB indicator
+4. `esphome run <chosen>.yaml`.
 
 ## Supported entities
 
