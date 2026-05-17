@@ -22,7 +22,10 @@ psram:
   speed: 80MHz
 
 external_components:
-  - source: github://rar/esphome-srne-inverter@main
+  - source:
+      type: git
+      url: ssh://git@github.com/RAR/esphome-srne-inverter.git
+      ref: main
     refresh: 0s
     components: [srne_modbus, srne_inverter]
   - source:
