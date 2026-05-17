@@ -402,63 +402,19 @@ lp5562:
   id: rgb_driver
   i2c_id: atom_i2c_bus
 
+# AtomS3R uses the LP5562's W channel (3) for the LCD backlight. The RGB
+# channels aren't wired to anything physical on this board, so we only
+# expose the backlight.
 output:
-  - platform: lp5562
-    id: lp5562_red
-    lp5562_id: rgb_driver
-    channel: 0
-  - platform: lp5562
-    id: lp5562_green
-    lp5562_id: rgb_driver
-    channel: 1
-  - platform: lp5562
-    id: lp5562_blue
-    lp5562_id: rgb_driver
-    channel: 2
   - platform: lp5562
     id: backlight_output
     lp5562_id: rgb_driver
     channel: 3
 
 light:
-  - platform: rgb
-    name: "Status LED"
-    id: status_led
-    red: lp5562_red
-    green: lp5562_green
-    blue: lp5562_blue
-    restore_mode: ALWAYS_ON
-    default_transition_length: 0.5s
-
   - platform: monochromatic
     name: "LCD Backlight"
     id: lcd_backlight
     output: backlight_output
     restore_mode: RESTORE_DEFAULT_ON
     default_transition_length: 0.5s
-
-# Drive the RGB LED from inverter state
-# Red    = fault
-# Green  = inverter actively powering loads from battery/PV
-# Blue   = mains/grid powered, no fault
-# Orange = online but idle (waiting, standby)
-# Off    = inverter offline
-interval:
-  - interval: 5s
-    then:
-      - lambda: |-
-          auto call = id(status_led).turn_on();
-          call.set_transition_length(500);
-          if (id(inv_fault).state) {
-            call.set_rgb(1.0, 0.0, 0.0);
-          } else if (id(inv_on).state) {
-            call.set_rgb(0.0, 1.0, 0.0);
-          } else if (id(inv_grid_present).state) {
-            call.set_rgb(0.0, 0.3, 1.0);
-          } else if (id(inv_online).state) {
-            call.set_rgb(1.0, 0.4, 0.0);
-          } else {
-            call = id(status_led).turn_off();
-            call.set_transition_length(500);
-          }
-          call.perform();
