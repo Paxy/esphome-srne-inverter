@@ -172,8 +172,8 @@ sensor:
     heatsink_c_temperature: { name: "Heatsink C Temp" }
 
     # DC bus rails (undocumented; found via register scan, sum ≈ bus_voltage)
-    dc_bus_positive_voltage: { name: "+DC Bus" }
-    dc_bus_negative_voltage: { name: "-DC Bus" }
+    dc_bus_positive_voltage: { name: "DC Bus +" }
+    dc_bus_negative_voltage: { name: "DC Bus -" }
 
     # L2 (split-phase / parallel-120 second-leg). Populates when the inverter
     # is actively outputting on both legs (i.e. not in eco standby).
