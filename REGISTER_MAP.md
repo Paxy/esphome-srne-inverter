@@ -19,19 +19,11 @@ Subset of the V1.7 register map (`srne-hybrid-solar-inverter-modbus-protocol-v1-
 | 0x0111 | PV2 power | u16 | 1 | W | `pv2_power` |
 | — | (derived) | — | — | W | `pv_total_power` = pv1_power + pv2_power |
 
-## Block B — inverter (polled every cycle, split into three reads)
+## Block B — inverter (polled every cycle, split into two reads)
 
-Block B is issued as three reads. Empirically on real hardware, reads spanning the password-protection status register at `0x0211` silently time out (no response, not a Modbus error). Splitting around that register works.
+At least one production SRNE firmware variant does not expose `0x0210` (machine state) or `0x0211` (password protection status mark) — reads at or spanning those addresses silently time out (no response, not a Modbus error). We start block B at `0x0212` and derive `inverter_on` from `inverter_voltage` instead of from `machine_state`. The `machine_state` text sensor stays Unknown on firmware that doesn't expose `0x0210`.
 
-### Block B1a — machine state (`0x0210`, 1 reg)
-
-| Reg | Name | Type | Mult | Unit | Sensor |
-|---|---|---|---|---|---|
-| 0x0210 | Machine state | u16 | — | enum | `machine_state` (text), `inverter_on` (binary) |
-
-### Block B1b — bus/grid/inverter/load (`0x0212`–`0x021F`, 14 regs)
-
-Skips `0x0211` (password protection status mark).
+### Block B1 — bus/grid/inverter/load (`0x0212`–`0x021F`, 14 regs)
 
 | Reg | Name | Type | Mult | Unit | Sensor |
 |---|---|---|---|---|---|

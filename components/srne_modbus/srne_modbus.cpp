@@ -13,6 +13,9 @@ static const uint8_t MODBUS_WRITE_MULTIPLE_REGISTERS = 0x10;
 
 static const uint16_t SRNE_MODBUS_RESPONSE_TIMEOUT = 1000;
 static const uint16_t SRNE_MODBUS_MIN_MSG_LEN = 5;
+// Some SRNE firmware drops the next request if it arrives too soon after
+// the previous response. Empirically a 50ms quiet period is enough.
+static const uint16_t SRNE_MODBUS_QUIET_TIME = 50;
 
 void SrneModbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
@@ -52,7 +55,7 @@ void SrneModbus::loop() {
     this->waiting_for_response_ = false;
   }
 
-  if (!this->waiting_for_response_) {
+  if (!this->waiting_for_response_ && now >= this->quiet_until_) {
     this->send_next_request_();
   }
 }
@@ -181,6 +184,9 @@ bool SrneModbus::parse_modbus_byte_(uint8_t byte) {
 
   this->rx_buffer_.clear();
   this->waiting_for_response_ = false;
+  // Enforce a quiet period before the next request — some SRNE firmware
+  // drops requests that follow a response too quickly.
+  this->quiet_until_ = millis() + SRNE_MODBUS_QUIET_TIME;
   return true;
 }
 

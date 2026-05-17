@@ -41,6 +41,7 @@ class SrneModbus : public uart::UARTDevice, public Component {
   std::vector<uint8_t> rx_buffer_;
   uint32_t last_modbus_byte_{0};
   uint32_t last_send_{0};
+  uint32_t quiet_until_{0};
   std::vector<SrneModbusDevice *> devices_;
   std::queue<ModbusRequest> request_queue_;
   bool waiting_for_response_{false};
