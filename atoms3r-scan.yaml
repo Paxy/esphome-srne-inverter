@@ -1,0 +1,77 @@
+# One-shot register-space scan for an SRNE inverter.
+#
+# Flash this temporarily, watch the log (esphome logs atoms3r-scan.yaml) for
+# ~3-5 minutes until you see "SCAN COMPLETE: N/M registers responded", then
+# re-flash atoms3r-example.yaml to return to normal operation.
+#
+# Logs every register that responds with its raw u16/i16/hex/ascii so you can
+# spot model-specific data (e.g. split-phase L2 voltage at 0x022A) that
+# isn't in the public PDF.
+
+esphome:
+  name: srne-scan
+  friendly_name: SRNE Scan
+  platformio_options:
+    board_build.flash_mode: dio
+
+esp32:
+  board: m5stack-atoms3
+  variant: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_LOG_DEFAULT_LEVEL_INFO: "y"
+      CONFIG_LOG_MAXIMUM_LEVEL_INFO: "y"
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+external_components:
+  - source:
+      type: git
+      url: ssh://git@github.com/RAR/esphome-srne-inverter.git
+      ref: main
+    refresh: 0s
+    components: [srne_modbus, srne_inverter]
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "SRNE Scan Fallback"
+    password: !secret fallback_ap_password
+
+captive_portal:
+
+uart:
+  id: uart_0
+  tx_pin: GPIO6
+  rx_pin: GPIO5
+  baud_rate: 9600
+  rx_buffer_size: 256
+
+srne_modbus:
+  id: modbus0
+  uart_id: uart_0
+
+srne_inverter:
+  id: inv0
+  srne_modbus_id: modbus0
+  address: 0x01
+  update_interval: 10s
+  scan_on_boot: true

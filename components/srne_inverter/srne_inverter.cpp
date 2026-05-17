@@ -70,6 +70,9 @@ static const uint16_t REG_OUTPUT_VOLTAGE = 0xE208;
 static const uint16_t REG_MAX_CHARGE_CURRENT = 0xE20A;
 static const uint16_t REG_CHARGE_PRIORITY = 0xE20F;
 
+// Sentinel step id for register-scan replies (anything not in 0..8 normal steps).
+static const uint8_t SCAN_STEP = 0xFF;
+
 // Defined here so the on_modbus_data dispatch (which uses get_u16 for the
 // single-register F3 block) can see them.
 static inline uint16_t get_u16(const uint8_t *p, size_t i) {
@@ -120,7 +123,23 @@ void SrneInverter::dump_config() {
 
 float SrneInverter::get_setup_priority() const { return setup_priority::DATA; }
 
+void SrneInverter::setup() {
+  if (this->scan_on_boot_) {
+    this->queue_scan_();
+  }
+}
+
 void SrneInverter::update() {
+  // In scan-on-boot mode skip the normal polling cycle entirely — the scan
+  // queued in setup() is the only traffic we generate.
+  if (this->scan_on_boot_) {
+    if (!this->scan_complete_announced_ && this->scan_regs_in_flight_.empty() && this->scan_total_ > 0) {
+      ESP_LOGI(TAG, "SCAN COMPLETE: %u/%u registers responded, %u timed out",
+               this->scan_responded_, this->scan_total_, this->scan_timed_out_);
+      this->scan_complete_announced_ = true;
+    }
+    return;
+  }
   if (this->no_response_count_ >= MAX_NO_RESPONSE_COUNT) {
     if (this->online_status_binary_sensor_ != nullptr) {
       this->online_status_binary_sensor_->publish_state(false);
@@ -181,9 +200,17 @@ void SrneInverter::update() {
 }
 
 void SrneInverter::on_modbus_timeout() {
-  if (!this->expected_steps_.empty()) {
-    uint8_t step = this->expected_steps_.front();
-    this->expected_steps_.pop();
+  if (this->expected_steps_.empty()) return;
+  uint8_t step = this->expected_steps_.front();
+  this->expected_steps_.pop();
+  if (step == SCAN_STEP) {
+    if (!this->scan_regs_in_flight_.empty()) {
+      uint16_t reg = this->scan_regs_in_flight_.front();
+      this->scan_regs_in_flight_.pop();
+      ESP_LOGI(TAG, "SCAN 0x%04X: TIMEOUT", reg);
+      this->scan_timed_out_++;
+    }
+  } else {
     ESP_LOGD(TAG, "Dropping queued step %u after timeout", step);
   }
 }
@@ -221,6 +248,16 @@ void SrneInverter::on_modbus_data(const std::vector<uint8_t> &data) {
   this->expected_steps_.pop();
 
   const uint8_t *payload = data.data() + 3;
+
+  if (step == SCAN_STEP) {
+    if (!this->scan_regs_in_flight_.empty()) {
+      uint16_t reg = this->scan_regs_in_flight_.front();
+      this->scan_regs_in_flight_.pop();
+      this->log_scan_response_(reg, payload, byte_count);
+      this->scan_responded_++;
+    }
+    return;
+  }
 
   switch (step) {
     case 0:
@@ -454,6 +491,46 @@ void SrneInverter::decode_block_f2_(const uint8_t *p, size_t byte_count) {
   if (this->max_charge_current_number_ != nullptr) {
     static_cast<SrneNumber *>(this->max_charge_current_number_)->publish_from_raw(max_charge);
   }
+}
+
+// --- Register-space scan ---
+
+void SrneInverter::queue_scan_() {
+  struct Range { uint16_t start; uint16_t end; const char *label; };
+  static const Range ranges[] = {
+    {0x0014, 0x004A, "P00 product info"},
+    {0x0100, 0x0125, "P01 controller / PV"},
+    {0x0200, 0x0250, "P02 inverter data (incl. phase B/C span)"},
+    {0xE000, 0xE040, "P05 battery settings"},
+    {0xE200, 0xE220, "P07 inverter settings"},
+    {0xF000, 0xF050, "P08 historical (sample)"},
+  };
+  ESP_LOGI(TAG, "===== REGISTER SCAN STARTING =====");
+  for (const auto &r : ranges) {
+    ESP_LOGI(TAG, "  range 0x%04X..0x%04X  %s", r.start, r.end, r.label);
+    for (uint32_t reg = r.start; reg <= r.end; reg++) {
+      this->scan_regs_in_flight_.push(static_cast<uint16_t>(reg));
+      this->expected_steps_.push(SCAN_STEP);
+      this->send(FUNCTION_READ_HOLDING, static_cast<uint16_t>(reg), 1);
+      this->scan_total_++;
+    }
+  }
+  ESP_LOGI(TAG, "===== Queued %u single-register reads (expect a few minutes) =====",
+           this->scan_total_);
+}
+
+void SrneInverter::log_scan_response_(uint16_t reg, const uint8_t *payload, size_t byte_count) {
+  if (byte_count < 2) {
+    ESP_LOGI(TAG, "SCAN 0x%04X: short response (%u bytes)", reg, (unsigned) byte_count);
+    return;
+  }
+  uint16_t u = get_u16(payload, 0);
+  int16_t s = static_cast<int16_t>(u);
+  // ASCII interpretation for string regs (high byte often 0, low byte = char)
+  char a_hi = (payload[0] >= 0x20 && payload[0] <= 0x7E) ? (char) payload[0] : '.';
+  char a_lo = (payload[1] >= 0x20 && payload[1] <= 0x7E) ? (char) payload[1] : '.';
+  ESP_LOGI(TAG, "SCAN 0x%04X: u16=%5u  i16=%6d  hex=%02X %02X  ascii='%c%c'",
+           reg, u, s, payload[0], payload[1], a_hi, a_lo);
 }
 
 // --- SrneSelect / SrneNumber ---

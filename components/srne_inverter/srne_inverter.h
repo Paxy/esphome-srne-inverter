@@ -14,7 +14,7 @@ namespace srne_inverter {
 
 class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevice {
  public:
-  void setup() override {}
+  void setup() override;
   void loop() override {}
   void update() override;
   void dump_config() override;
@@ -22,6 +22,8 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
 
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   void on_modbus_timeout() override;
+
+  void set_scan_on_boot(bool scan) { scan_on_boot_ = scan; }
 
   // Block A sensors
   void set_battery_soc_sensor(sensor::Sensor *s) { battery_soc_sensor_ = s; }
@@ -141,6 +143,17 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   uint8_t no_response_count_{0};
   uint32_t update_counter_{0};
   std::queue<uint8_t> expected_steps_;
+
+  // One-shot register-space scan support
+  bool scan_on_boot_{false};
+  std::queue<uint16_t> scan_regs_in_flight_;
+  uint32_t scan_total_{0};
+  uint32_t scan_responded_{0};
+  uint32_t scan_timed_out_{0};
+  bool scan_complete_announced_{false};
+
+  void queue_scan_();
+  void log_scan_response_(uint16_t reg, const uint8_t *payload, size_t byte_count);
 
   void publish_state_(sensor::Sensor *s, float value);
   void publish_state_(binary_sensor::BinarySensor *s, bool state);

@@ -20,10 +20,13 @@ SRNE_INVERTER_COMPONENT_SCHEMA = cv.Schema(
     }
 )
 
+CONF_SCAN_ON_BOOT = "scan_on_boot"
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SrneInverter),
+            cv.Optional(CONF_SCAN_ON_BOOT, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("10s"))
@@ -35,3 +38,4 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await srne_modbus.register_srne_modbus_device(var, config)
+    cg.add(var.set_scan_on_boot(config[CONF_SCAN_ON_BOOT]))
