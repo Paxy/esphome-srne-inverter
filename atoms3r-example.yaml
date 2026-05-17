@@ -109,6 +109,8 @@ binary_sensor:
     fault:
       name: "Inverter Fault"
       id: inv_fault
+    split_phase_mode:
+      name: "Split Phase Mode"
 
 sensor:
   - platform: wifi_signal

@@ -84,6 +84,13 @@ static const uint16_t REG_BLOCK_F4_START = 0xE20C;
 static const uint16_t REG_BLOCK_F4_COUNT = 0x01;
 static const uint8_t BLOCK_F4_BYTE_COUNT = 0x02;
 
+// Block F5: 0xE21E (1 reg) — AC Output Phase Mode (0=parallel/0°, 2=split/180°)
+// Undocumented; identified by diffing scans before/after toggling the
+// inverter's "AC Output Phase Mode" menu item.
+static const uint16_t REG_BLOCK_F5_START = 0xE21E;
+static const uint16_t REG_BLOCK_F5_COUNT = 0x01;
+static const uint8_t BLOCK_F5_BYTE_COUNT = 0x02;
+
 // Settings registers we may write to (function 0x06)
 static const uint16_t REG_OUTPUT_PRIORITY = 0xE204;
 static const uint16_t REG_MAINS_CHARGE_CURRENT_LIMIT = 0xE205;
@@ -244,6 +251,14 @@ void SrneInverter::update() {
       this->expected_steps_.push(10);
       this->send(FUNCTION_READ_HOLDING, REG_BLOCK_F4_START, REG_BLOCK_F4_COUNT);
     }
+    // Block F5 (phase mode) needed for split_phase_mode binary sensor AND for
+    // mode-aware inverter_voltage_l1_l2 derivation.
+    bool want_f5 = this->split_phase_mode_binary_sensor_ != nullptr ||
+                   this->inverter_voltage_l1_l2_sensor_ != nullptr;
+    if (want_f5) {
+      this->expected_steps_.push(12);
+      this->send(FUNCTION_READ_HOLDING, REG_BLOCK_F5_START, REG_BLOCK_F5_COUNT);
+    }
   }
   this->update_counter_++;
 }
@@ -368,6 +383,9 @@ void SrneInverter::on_modbus_data(const std::vector<uint8_t> &data) {
       break;
     case 11:
       if (byte_count == BLOCK_B3_BYTE_COUNT) this->decode_block_b3_(payload, byte_count);
+      break;
+    case 12:
+      if (byte_count == BLOCK_F5_BYTE_COUNT) this->decode_block_f5_(payload, byte_count);
       break;
   }
 
@@ -609,12 +627,18 @@ void SrneInverter::decode_block_b3_(const uint8_t *p, size_t byte_count) {
   this->publish_state_(this->load_apparent_power_l2_sensor_, load_va_l2);
   this->publish_state_(this->load_percent_l2_sensor_, (float) get_u16(p, 24));
 
-  // Combined L1+L2. Voltage is reported as the magnitude sum (≈ 240V on a
-  // split-phase output; on parallel-120 output L1 and L2 are in phase so the
-  // line-to-line is actually 0V, but the sum still represents total leg-V
-  // available). Power/current sums are always meaningful.
+  // Combined L1+L2. Voltage depends on phase mode (read from 0xE21E):
+  //   Split (180°): line-to-line = L1 + L2  (≈ 240V)
+  //   Parallel (0°): line-to-line = |L1 - L2|  (≈ 0V if balanced)
+  // We only publish if the mode is known so the value is never misleading.
   if (!std::isnan(this->l1_inverter_voltage_)) {
-    this->publish_state_(this->inverter_voltage_l1_l2_sensor_, this->l1_inverter_voltage_ + v_l2);
+    float v_l1_l2 = NAN;
+    if (this->phase_mode_ == PhaseMode::Split) {
+      v_l1_l2 = this->l1_inverter_voltage_ + v_l2;
+    } else if (this->phase_mode_ == PhaseMode::Parallel) {
+      v_l1_l2 = std::abs(this->l1_inverter_voltage_ - v_l2);
+    }
+    this->publish_state_(this->inverter_voltage_l1_l2_sensor_, v_l1_l2);
   }
   if (!std::isnan(this->l1_inverter_current_)) {
     this->publish_state_(this->inverter_current_total_sensor_, this->l1_inverter_current_ + i_l2);
@@ -635,6 +659,23 @@ void SrneInverter::decode_block_f4_(const uint8_t *p, size_t byte_count) {
   // 0xE20C eco_mode (1 reg, 0=off / 1=on)
   if (this->eco_mode_switch_ != nullptr) {
     static_cast<SrneSwitch *>(this->eco_mode_switch_)->publish_from_raw(get_u16(p, 0));
+  }
+}
+
+void SrneInverter::decode_block_f5_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < BLOCK_F5_BYTE_COUNT) return;
+  // 0xE21E AC Output Phase Mode: 0=parallel(0°), 2=split(180°)
+  uint16_t raw = get_u16(p, 0);
+  switch (raw) {
+    case 0: this->phase_mode_ = PhaseMode::Parallel; break;
+    case 2: this->phase_mode_ = PhaseMode::Split; break;
+    default:
+      this->phase_mode_ = PhaseMode::Unknown;
+      ESP_LOGW(TAG, "Phase mode register 0xE21E returned unexpected value %u", raw);
+      break;
+  }
+  if (this->split_phase_mode_binary_sensor_ != nullptr) {
+    this->split_phase_mode_binary_sensor_->publish_state(this->phase_mode_ == PhaseMode::Split);
   }
 }
 

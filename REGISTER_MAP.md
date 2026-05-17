@@ -64,11 +64,28 @@ Populates only when the inverter is actively outputting on both legs (i.e. not i
 
 | Sensor | Formula | Unit | Notes |
 |---|---|---|---|
-| `inverter_voltage_l1_l2` | `inverter_voltage` + `inverter_voltage_l2` | V | ≈ 240V on split-phase; on parallel-120 it's the magnitude sum (≈ 240V) since we can't measure phase relationship directly |
+| `inverter_voltage_l1_l2` | mode-aware (see below) | V | Reads `0xE21E` to know whether to sum or diff |
 | `inverter_current_total` | `inverter_current` + `inverter_current_l2` | A | Total inverter output current across both legs |
 | `load_current_total` | `load_current` + `load_current_l2` | A | Total load current draw |
 | `load_active_power_total` | `load_active_power` + `load_active_power_l2` | W | Total real power |
 | `load_apparent_power_total` | `load_apparent_power` + `load_apparent_power_l2` | VA | Total apparent power |
+
+`inverter_voltage_l1_l2` formula depends on `0xE21E` (AC Output Phase Mode):
+
+| `0xE21E` | Mode | Formula | Typical reading |
+|---|---|---|---|
+| `0` | Parallel (0°, both legs in phase) | `\|L1 − L2\|` | ≈ 0 V if balanced |
+| `2` | Split phase (180°) | `L1 + L2` | ≈ 240 V on a 120/240 split |
+
+If the mode hasn't been read yet (first ~5 min after boot) `inverter_voltage_l1_l2` stays unknown rather than publish a misleading value.
+
+### Block F5 — AC Output Phase Mode (`0xE21E`, 1 reg, polled if `inverter_voltage_l1_l2` or `split_phase_mode` is configured)
+
+| Reg | Name | Type | Values | Sensor |
+|---|---|---|---|---|
+| 0xE21E | AC Output Phase Mode | u16 | 0 = parallel (0°), 2 = split (180°), 1 = 120° three-phase (untested) | `split_phase_mode` (binary) — also feeds the `inverter_voltage_l1_l2` derivation |
+
+Undocumented in the V1.7 PDF — identified by diffing scans before and after toggling the inverter's "AC Output Phase Mode" menu item.
 
 ### Block B2 — heatsinks + PV charge + DC bus rails (`0x0220`–`0x0229`, 10 regs)
 

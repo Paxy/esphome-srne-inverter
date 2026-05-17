@@ -80,6 +80,7 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   void set_grid_present_binary_sensor(binary_sensor::BinarySensor *s) { grid_present_binary_sensor_ = s; }
   void set_inverter_on_binary_sensor(binary_sensor::BinarySensor *s) { inverter_on_binary_sensor_ = s; }
   void set_fault_binary_sensor(binary_sensor::BinarySensor *s) { fault_binary_sensor_ = s; }
+  void set_split_phase_mode_binary_sensor(binary_sensor::BinarySensor *s) { split_phase_mode_binary_sensor_ = s; }
 
   // Text sensors
   void set_machine_state_text_sensor(text_sensor::TextSensor *s) { machine_state_text_sensor_ = s; }
@@ -165,11 +166,22 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   float l1_load_active_power_{NAN};
   float l1_load_apparent_power_{NAN};
 
+  // Read from 0xE21E (Block F5). Undocumented in the V1.7 PDF; identified
+  // empirically by diffing scans before/after toggling the inverter's
+  // "AC Output Phase Mode" (menu item 68): 0 = parallel/0°, 2 = split/180°
+  // (likely 1 = 120° three-phase, untested). When split, line-to-line ≈
+  // L1 + L2 (≈ 240V). When parallel, L1 and L2 are in phase, line-to-line
+  // ≈ |L1 - L2| (≈ 0V if balanced). Voltage_l1_l2 isn't published until
+  // we know the mode.
+  enum class PhaseMode { Unknown, Parallel, Split };
+  PhaseMode phase_mode_{PhaseMode::Unknown};
+
   // Binary sensors
   binary_sensor::BinarySensor *online_status_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *grid_present_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *inverter_on_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *fault_binary_sensor_{nullptr};
+  binary_sensor::BinarySensor *split_phase_mode_binary_sensor_{nullptr};
 
   // Text sensors
   text_sensor::TextSensor *machine_state_text_sensor_{nullptr};
@@ -215,6 +227,7 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   void decode_block_b2_(const uint8_t *payload, size_t byte_count);
   void decode_block_b3_(const uint8_t *payload, size_t byte_count);
   void decode_block_f4_(const uint8_t *payload, size_t byte_count);
+  void decode_block_f5_(const uint8_t *payload, size_t byte_count);
   void decode_block_c_(const uint8_t *payload, size_t byte_count);
   void decode_block_d_(const uint8_t *payload, size_t byte_count);
   void decode_block_e_(const uint8_t *payload, size_t byte_count);
