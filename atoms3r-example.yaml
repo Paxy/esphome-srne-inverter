@@ -154,16 +154,16 @@ sensor:
       id: inv_grid_voltage
     grid_current: { name: "Grid Current" }
     grid_frequency: { name: "Grid Frequency" }
-    inverter_voltage: { name: "Inverter Voltage" }
-    inverter_current: { name: "Inverter Current" }
+    inverter_voltage: { name: "Inverter Voltage L1" }
+    inverter_current: { name: "Inverter Current L1" }
     inverter_frequency: { name: "Inverter Frequency" }
-    load_current: { name: "Load Current" }
+    load_current: { name: "Load Current L1" }
     load_active_power:
-      name: "Load Power"
+      name: "Load Power L1"
       id: inv_load_power
-    load_apparent_power: { name: "Load Apparent Power" }
+    load_apparent_power: { name: "Load Apparent Power L1" }
     load_percent:
-      name: "Load Percent"
+      name: "Load Percent L1"
       id: inv_load_percent
     battery_charge_current: { name: "Battery Charge Current" }
 
