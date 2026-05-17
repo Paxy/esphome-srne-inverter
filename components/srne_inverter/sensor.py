@@ -62,6 +62,13 @@ CONF_LOAD_ACTIVE_POWER_L2 = "load_active_power_l2"
 CONF_LOAD_APPARENT_POWER_L2 = "load_apparent_power_l2"
 CONF_LOAD_PERCENT_L2 = "load_percent_l2"
 
+# L1+L2 combined / line-to-line
+CONF_INVERTER_VOLTAGE_L1_L2 = "inverter_voltage_l1_l2"
+CONF_INVERTER_CURRENT_TOTAL = "inverter_current_total"
+CONF_LOAD_CURRENT_TOTAL = "load_current_total"
+CONF_LOAD_ACTIVE_POWER_TOTAL = "load_active_power_total"
+CONF_LOAD_APPARENT_POWER_TOTAL = "load_apparent_power_total"
+
 UNIT_VOLT_AMPS = "VA"
 
 VOLTAGE_SCHEMA = sensor.sensor_schema(
@@ -143,6 +150,11 @@ CONFIG_SCHEMA = SRNE_INVERTER_COMPONENT_SCHEMA.extend(
         cv.Optional(CONF_LOAD_ACTIVE_POWER_L2): POWER_SCHEMA,
         cv.Optional(CONF_LOAD_APPARENT_POWER_L2): APPARENT_POWER_SCHEMA,
         cv.Optional(CONF_LOAD_PERCENT_L2): PERCENT_SCHEMA,
+        cv.Optional(CONF_INVERTER_VOLTAGE_L1_L2): VOLTAGE_SCHEMA,
+        cv.Optional(CONF_INVERTER_CURRENT_TOTAL): CURRENT_SCHEMA,
+        cv.Optional(CONF_LOAD_CURRENT_TOTAL): CURRENT_SCHEMA,
+        cv.Optional(CONF_LOAD_ACTIVE_POWER_TOTAL): POWER_SCHEMA,
+        cv.Optional(CONF_LOAD_APPARENT_POWER_TOTAL): APPARENT_POWER_SCHEMA,
     }
 )
 
@@ -187,6 +199,11 @@ async def to_code(config):
         CONF_LOAD_ACTIVE_POWER_L2: hub.set_load_active_power_l2_sensor,
         CONF_LOAD_APPARENT_POWER_L2: hub.set_load_apparent_power_l2_sensor,
         CONF_LOAD_PERCENT_L2: hub.set_load_percent_l2_sensor,
+        CONF_INVERTER_VOLTAGE_L1_L2: hub.set_inverter_voltage_l1_l2_sensor,
+        CONF_INVERTER_CURRENT_TOTAL: hub.set_inverter_current_total_sensor,
+        CONF_LOAD_CURRENT_TOTAL: hub.set_load_current_total_sensor,
+        CONF_LOAD_ACTIVE_POWER_TOTAL: hub.set_load_active_power_total_sensor,
+        CONF_LOAD_APPARENT_POWER_TOTAL: hub.set_load_apparent_power_total_sensor,
     }
     for key, setter in mapping.items():
         if key in config:

@@ -183,6 +183,13 @@ sensor:
     load_percent_l2: { name: "Load Percent L2" }
     # grid_voltage_l2: { name: "Grid Voltage L2" }    # uncomment if grid is wired
 
+    # L1+L2 combined (= 240V line-to-line on split-phase; sum on parallel-120)
+    inverter_voltage_l1_l2: { name: "Inverter Voltage L1+L2" }
+    inverter_current_total: { name: "Inverter Current Total" }
+    load_current_total: { name: "Load Current Total" }
+    load_active_power_total: { name: "Load Power Total" }
+    load_apparent_power_total: { name: "Load Apparent Power Total" }
+
 text_sensor:
   - platform: wifi_info
     ip_address:

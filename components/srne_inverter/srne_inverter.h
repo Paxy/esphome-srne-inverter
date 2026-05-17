@@ -68,6 +68,13 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   void set_load_apparent_power_l2_sensor(sensor::Sensor *s) { load_apparent_power_l2_sensor_ = s; }
   void set_load_percent_l2_sensor(sensor::Sensor *s) { load_percent_l2_sensor_ = s; }
 
+  // L1+L2 combined / line-to-line — computed in decode_block_b3_
+  void set_inverter_voltage_l1_l2_sensor(sensor::Sensor *s) { inverter_voltage_l1_l2_sensor_ = s; }
+  void set_inverter_current_total_sensor(sensor::Sensor *s) { inverter_current_total_sensor_ = s; }
+  void set_load_current_total_sensor(sensor::Sensor *s) { load_current_total_sensor_ = s; }
+  void set_load_active_power_total_sensor(sensor::Sensor *s) { load_active_power_total_sensor_ = s; }
+  void set_load_apparent_power_total_sensor(sensor::Sensor *s) { load_apparent_power_total_sensor_ = s; }
+
   // Binary sensors
   void set_online_status_binary_sensor(binary_sensor::BinarySensor *s) { online_status_binary_sensor_ = s; }
   void set_grid_present_binary_sensor(binary_sensor::BinarySensor *s) { grid_present_binary_sensor_ = s; }
@@ -142,6 +149,21 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   sensor::Sensor *load_active_power_l2_sensor_{nullptr};
   sensor::Sensor *load_apparent_power_l2_sensor_{nullptr};
   sensor::Sensor *load_percent_l2_sensor_{nullptr};
+
+  // L1+L2 combined storage
+  sensor::Sensor *inverter_voltage_l1_l2_sensor_{nullptr};
+  sensor::Sensor *inverter_current_total_sensor_{nullptr};
+  sensor::Sensor *load_current_total_sensor_{nullptr};
+  sensor::Sensor *load_active_power_total_sensor_{nullptr};
+  sensor::Sensor *load_apparent_power_total_sensor_{nullptr};
+
+  // L1 values cached during decode_block_b1_ so the L1+L2 sums can be computed
+  // when B3 decodes (B1 always runs before B3 in the polling order).
+  float l1_inverter_voltage_{NAN};
+  float l1_inverter_current_{NAN};
+  float l1_load_current_{NAN};
+  float l1_load_active_power_{NAN};
+  float l1_load_apparent_power_{NAN};
 
   // Binary sensors
   binary_sensor::BinarySensor *online_status_binary_sensor_{nullptr};

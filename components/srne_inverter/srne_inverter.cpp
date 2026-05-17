@@ -424,13 +424,18 @@ void SrneInverter::decode_block_b1_(const uint8_t *p, size_t byte_count) {
   this->publish_state_(this->grid_present_binary_sensor_, grid_voltage_raw > 500);
 
   // 0x0216 inverter V, 0x0217 inverter I, 0x0218 inverter Hz x0.01
-  this->publish_state_(this->inverter_voltage_sensor_, get_u16(p, 8) * 0.1f);
-  this->publish_state_(this->inverter_current_sensor_, get_u16(p, 10) * 0.1f);
+  this->l1_inverter_voltage_ = get_u16(p, 8) * 0.1f;
+  this->l1_inverter_current_ = get_u16(p, 10) * 0.1f;
+  this->publish_state_(this->inverter_voltage_sensor_, this->l1_inverter_voltage_);
+  this->publish_state_(this->inverter_current_sensor_, this->l1_inverter_current_);
   this->publish_state_(this->inverter_frequency_sensor_, get_u16(p, 12) * 0.01f);
   // 0x0219 load I, 0x021A load PF (gray skip), 0x021B load W, 0x021C load VA, 0x021D DC component (gray skip)
-  this->publish_state_(this->load_current_sensor_, get_u16(p, 14) * 0.1f);
-  this->publish_state_(this->load_active_power_sensor_, (float) get_u16(p, 18));
-  this->publish_state_(this->load_apparent_power_sensor_, (float) get_u16(p, 20));
+  this->l1_load_current_ = get_u16(p, 14) * 0.1f;
+  this->l1_load_active_power_ = (float) get_u16(p, 18);
+  this->l1_load_apparent_power_ = (float) get_u16(p, 20);
+  this->publish_state_(this->load_current_sensor_, this->l1_load_current_);
+  this->publish_state_(this->load_active_power_sensor_, this->l1_load_active_power_);
+  this->publish_state_(this->load_apparent_power_sensor_, this->l1_load_apparent_power_);
   // 0x021E battery charge I, 0x021F load %
   this->publish_state_(this->battery_charge_current_sensor_, get_u16(p, 24) * 0.1f);
   this->publish_state_(this->load_percent_sensor_, (float) get_u16(p, 26));
@@ -583,13 +588,39 @@ void SrneInverter::decode_block_b3_(const uint8_t *p, size_t byte_count) {
   // 0x022E inv I L2, 0x022F inv I C (skip), 0x0230 load I L2, 0x0231 load I C (skip)
   // 0x0232 load W L2, 0x0233 load W C (skip), 0x0234 load VA L2, 0x0235 load VA C (skip)
   // 0x0236 load % L2
+  float v_l2 = get_u16(p, 4) * 0.1f;
+  float i_l2 = get_u16(p, 8) * 0.1f;
+  float load_i_l2 = get_u16(p, 12) * 0.1f;
+  float load_w_l2 = (float) get_u16(p, 16);
+  float load_va_l2 = (float) get_u16(p, 20);
+
   this->publish_state_(this->grid_voltage_l2_sensor_, get_u16(p, 0) * 0.1f);
-  this->publish_state_(this->inverter_voltage_l2_sensor_, get_u16(p, 4) * 0.1f);
-  this->publish_state_(this->inverter_current_l2_sensor_, get_u16(p, 8) * 0.1f);
-  this->publish_state_(this->load_current_l2_sensor_, get_u16(p, 12) * 0.1f);
-  this->publish_state_(this->load_active_power_l2_sensor_, (float) get_u16(p, 16));
-  this->publish_state_(this->load_apparent_power_l2_sensor_, (float) get_u16(p, 20));
+  this->publish_state_(this->inverter_voltage_l2_sensor_, v_l2);
+  this->publish_state_(this->inverter_current_l2_sensor_, i_l2);
+  this->publish_state_(this->load_current_l2_sensor_, load_i_l2);
+  this->publish_state_(this->load_active_power_l2_sensor_, load_w_l2);
+  this->publish_state_(this->load_apparent_power_l2_sensor_, load_va_l2);
   this->publish_state_(this->load_percent_l2_sensor_, (float) get_u16(p, 24));
+
+  // Combined L1+L2. Voltage is reported as the magnitude sum (≈ 240V on a
+  // split-phase output; on parallel-120 output L1 and L2 are in phase so the
+  // line-to-line is actually 0V, but the sum still represents total leg-V
+  // available). Power/current sums are always meaningful.
+  if (!std::isnan(this->l1_inverter_voltage_)) {
+    this->publish_state_(this->inverter_voltage_l1_l2_sensor_, this->l1_inverter_voltage_ + v_l2);
+  }
+  if (!std::isnan(this->l1_inverter_current_)) {
+    this->publish_state_(this->inverter_current_total_sensor_, this->l1_inverter_current_ + i_l2);
+  }
+  if (!std::isnan(this->l1_load_current_)) {
+    this->publish_state_(this->load_current_total_sensor_, this->l1_load_current_ + load_i_l2);
+  }
+  if (!std::isnan(this->l1_load_active_power_)) {
+    this->publish_state_(this->load_active_power_total_sensor_, this->l1_load_active_power_ + load_w_l2);
+  }
+  if (!std::isnan(this->l1_load_apparent_power_)) {
+    this->publish_state_(this->load_apparent_power_total_sensor_, this->l1_load_apparent_power_ + load_va_l2);
+  }
 }
 
 void SrneInverter::decode_block_f4_(const uint8_t *p, size_t byte_count) {

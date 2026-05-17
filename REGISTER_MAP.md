@@ -60,6 +60,16 @@ Populates only when the inverter is actively outputting on both legs (i.e. not i
 | 0x0234 | Load apparent power L2 | u16 | 1 | VA | `load_apparent_power_l2` |
 | 0x0236 | Load percent L2 | u16 | 1 | % | `load_percent_l2` |
 
+### Combined L1+L2 (computed in firmware when both blocks decode)
+
+| Sensor | Formula | Unit | Notes |
+|---|---|---|---|
+| `inverter_voltage_l1_l2` | `inverter_voltage` + `inverter_voltage_l2` | V | ≈ 240V on split-phase; on parallel-120 it's the magnitude sum (≈ 240V) since we can't measure phase relationship directly |
+| `inverter_current_total` | `inverter_current` + `inverter_current_l2` | A | Total inverter output current across both legs |
+| `load_current_total` | `load_current` + `load_current_l2` | A | Total load current draw |
+| `load_active_power_total` | `load_active_power` + `load_active_power_l2` | W | Total real power |
+| `load_apparent_power_total` | `load_apparent_power` + `load_apparent_power_l2` | VA | Total apparent power |
+
 ### Block B2 — heatsinks + PV charge + DC bus rails (`0x0220`–`0x0229`, 10 regs)
 
 | Reg | Name | Type | Mult | Unit | Sensor |
