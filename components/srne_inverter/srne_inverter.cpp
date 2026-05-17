@@ -229,8 +229,27 @@ void SrneInverter::on_modbus_data(const std::vector<uint8_t> &data) {
   }
 
   if ((function & 0x80) != 0) {
-    ESP_LOGW(TAG, "Modbus error response: 0x%02X", data[2]);
-    if (!this->expected_steps_.empty()) this->expected_steps_.pop();
+    uint8_t err_code = data[2];
+    uint8_t step = 0xFE;
+    if (!this->expected_steps_.empty()) {
+      step = this->expected_steps_.front();
+      this->expected_steps_.pop();
+    }
+    if (step == SCAN_STEP) {
+      // Pop the parallel scan queue too so subsequent SCAN labels stay aligned,
+      // and surface the failing register address — far more useful than a bare
+      // "Modbus error".
+      if (!this->scan_regs_in_flight_.empty()) {
+        uint16_t reg = this->scan_regs_in_flight_.front();
+        this->scan_regs_in_flight_.pop();
+        ESP_LOGI(TAG, "SCAN 0x%04X: ERROR 0x%02X (illegal address / not exposed)", reg, err_code);
+        this->scan_timed_out_++;
+      } else {
+        ESP_LOGW(TAG, "SCAN ERROR 0x%02X but scan queue is empty", err_code);
+      }
+    } else {
+      ESP_LOGW(TAG, "Modbus error response: 0x%02X", err_code);
+    }
     return;
   }
 
