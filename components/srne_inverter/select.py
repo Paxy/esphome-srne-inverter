@@ -22,9 +22,12 @@ OUTPUT_PRIORITY_OPTIONS = ["Solar", "Line", "SBU"]
 #   0xE20F Charge priority: 0 PV preferred, 1 Mains preferred, 2 Hybrid, 3 PV only
 CHARGE_PRIORITY_OPTIONS = ["PV preferred", "Mains preferred", "Hybrid", "PV only"]
 #   0xE004 Battery type, per §5.2 menu item 08 of the user manual.
-#   Indices: 0=User-defined, 1=Sealed lead-acid, 2=Flooded lead-acid, 3=Gel,
-#   6,7,8=L14/L15/L16 LFP variants (commonly used here), 4,5,9-12 reserved,
-#   13,14=N13/N14 ternary Li-ion. Index defines the wire value.
+#   Indices (confirmed against the Anenji keypad — keypad showed "L16" while
+#   raw register value was 6):
+#     0=User-defined, 1=Sealed lead-acid, 2=Flooded lead-acid, 3=Gel,
+#     4=LFP L14, 5=LFP L15, 6=LFP L16,
+#     7..12=reserved,
+#     13=Ternary N13, 14=Ternary N14
 #
 #   NOTE: the Anenji 12KW firmware refuses writes to 0xE004 with Modbus error
 #   0x0B (permission denied) — battery type is keypad-only on that hardware.
@@ -35,11 +38,11 @@ BATTERY_TYPE_OPTIONS = [
     "Sealed lead-acid",   # 1
     "Flooded lead-acid",  # 2
     "Gel",                # 3
-    "Reserved (4)",       # 4
-    "Reserved (5)",       # 5
-    "LFP L14",            # 6
-    "LFP L15",            # 7
-    "LFP L16",            # 8
+    "LFP L14",            # 4
+    "LFP L15",            # 5
+    "LFP L16",            # 6
+    "Reserved (7)",       # 7
+    "Reserved (8)",       # 8
     "Reserved (9)",       # 9
     "Reserved (10)",      # 10
     "Reserved (11)",      # 11
@@ -48,9 +51,10 @@ BATTERY_TYPE_OPTIONS = [
     "Ternary N14",        # 14
 ]
 
-#   0xE20B AC input voltage range, per §5.2 menu item 03:
-#   0=UPS (output 120/110V → range 90-140V), 1=APL (output 100/105V → range 85-140V)
-AC_INPUT_VOLTAGE_RANGE_OPTIONS = ["UPS", "APL"]
+#   0xE20B AC input voltage range, per V1.7 PDF (and confirmed against the
+#   Anenji keypad — keypad showed "UPS" while raw register value was 1):
+#   0=APL (wide range, output 100/105V, 85-140V), 1=UPS (narrow, 120/110V, 90-140V)
+AC_INPUT_VOLTAGE_RANGE_OPTIONS = ["APL", "UPS"]
 
 #   0xE201 Parallel mode, per §5.2 menu item 31:
 #   0=SIG single inverter, 1=PAL parallel, 2/3/4=two-phase P0/P1/P2,

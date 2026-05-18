@@ -87,7 +87,7 @@ Entities marked *diagnostic* are placed under the **Diagnostic** section of the 
 | `software_version` | `CPU1 v9.00 / CPU2 v1.04` | `0x0014`–`0x0015` — *diagnostic* |
 | `hardware_version` | `Control v3.00 / Power v3.04` | `0x0016`–`0x0017` — *diagnostic* |
 | `serial_number` | `ANJ2602260356-100132` | `0x0035`–`0x0048` (ASCII, low byte per reg) — *diagnostic* |
-| `battery_type` | `LFP L14 (raw 0x06)` | `0xE004` decoded — read-only mirror; the writable select is firmware-locked on Anenji (see [Known firmware locks](#known-firmware-locks)). *diagnostic* |
+| `battery_type` | `LFP L16 (raw 0x06)` | `0xE004` decoded — read-only mirror; the writable select is firmware-locked on Anenji (see [Known firmware locks](#known-firmware-locks)). *diagnostic* |
 
 ### Writable settings (Modbus function `0x06`)
 
@@ -97,7 +97,7 @@ All marked as Configuration entities in HA. Changing one in HA writes immediatel
 |---|---|---|---|
 | `select.output_priority` | `SBU` | `0xE204` | Solar / Line / SBU |
 | `select.charge_priority` | `Hybrid` | `0xE20F` | PV preferred / Mains preferred / Hybrid / PV only |
-| `select.ac_input_voltage_range` | `APL` | `0xE20B` | UPS (120/110 V, 90-140 V) / APL (100/105 V, 85-140 V) |
+| `select.ac_input_voltage_range` | `UPS` | `0xE20B` | APL (wide, 100/105 V, 85-140 V) = raw 0 / UPS (narrow, 120/110 V, 90-140 V) = raw 1 |
 | `select.parallel_mode` | `SIG (single)` | `0xE201` | SIG / PAL / 2P0-2P2 / 3P1-3P3 — **only writable while inverter is shut down** (runtime writes return error 0x08) |
 | `number.output_voltage` | `120.0 V` | `0xE208` | 100-264 V |
 | `number.max_charge_current` | (slow-poll pending) | `0xE20A` | 0-100 A — manual §5.2 item 07 says 0-200 but Anenji firmware caps at 100; likely a *per-leg* limit (split-phase: 2 × 100 A = 200 A total) |

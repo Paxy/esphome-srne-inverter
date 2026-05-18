@@ -898,9 +898,9 @@ void SrneInverter::decode_block_g_(const uint8_t *p, size_t byte_count) {
       case 1: name = "Sealed lead-acid"; break;
       case 2: name = "Flooded lead-acid"; break;
       case 3: name = "Gel"; break;
-      case 6: name = "LFP L14"; break;
-      case 7: name = "LFP L15"; break;
-      case 8: name = "LFP L16"; break;
+      case 4: name = "LFP L14"; break;
+      case 5: name = "LFP L15"; break;
+      case 6: name = "LFP L16"; break;
       case 13: name = "Ternary N13"; break;
       case 14: name = "Ternary N14"; break;
       default: name = "Unknown"; break;
