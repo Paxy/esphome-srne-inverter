@@ -32,9 +32,11 @@ CONF_SOC_SWITCH_TO_INVERTER = "soc_switch_to_inverter"
 # places — actual hardware behaviour is the source of truth:
 #   - 0xE205 mains-side charge current  → manual item 28, firmware caps at 120 A
 #                                         (PDF said 100, manual said 120)
-#   - 0xE20A battery / max charge current → manual item 07, range 0..200 A
-#                                         (PDF said 150, manual says 200)
-REG_MAX_CHARGE_CURRENT = 0xE20A          # battery side, 0..200 A, scale 0.1
+#   - 0xE20A battery / max charge current → manual item 07 says 0..200, but the
+#                                         Anenji firmware caps at 100 A — likely
+#                                         a *per-leg* limit on this split-phase
+#                                         unit (2 legs × 100 A = 200 A total).
+REG_MAX_CHARGE_CURRENT = 0xE20A          # battery side, 0..100 A per leg, scale 0.1
 REG_MAINS_CHARGE_CURRENT_LIMIT = 0xE205  # mains side, 0..120 A, scale 0.1
 REG_OUTPUT_VOLTAGE = 0xE208              # 100..264 V, scale 0.1
 
@@ -124,7 +126,7 @@ async def to_code(config):
         n = await _make_number(
             config[CONF_MAX_CHARGE_CURRENT],
             min_value=0,
-            max_value=200,
+            max_value=100,
             step=1,
             register_addr=REG_MAX_CHARGE_CURRENT,
             scale=0.1,
