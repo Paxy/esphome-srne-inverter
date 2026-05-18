@@ -215,7 +215,7 @@ static const char *fault_code_name_(uint16_t code) {
     case 58: return "BMSComErr";
     // 59 undocumented in §7.1; observed on Anenji 12KW when BMS-reported SOC
     // reaches 100% → BMS signals "stop charging". Treat as informational.
-    case 59: return "BMSChargeFull";
+    case 59: return "BMSChargeDisabled";
     case 60: return "BMSUnderTem";
     case 61: return "BMSOverTem";
     case 62: return "BMSOverCur";

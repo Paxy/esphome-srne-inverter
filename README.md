@@ -82,7 +82,7 @@ Entities marked *diagnostic* are placed under the **Diagnostic** section of the 
 |---|---|---|
 | `machine_state` | `Soft start` | `0x0210` decoded (11 known states) — *diagnostic* |
 | `charge_state` | `Off` | `0x010B` decoded |
-| `fault_codes` | `None` | `0x0204`–`0x0207` decoded to symbolic names per the manual (`BatVoltLow`, `OverloadInverter`, `ParaAcSrcDiff`, …) — also includes `BMSChargeFull` for fault code 59 (undocumented in §7.1; observed when BMS reports 100% SOC). `None` when no active faults. *diagnostic* |
+| `fault_codes` | `None` | `0x0204`–`0x0207` decoded to symbolic names per the manual (`BatVoltLow`, `OverloadInverter`, `ParaAcSrcDiff`, …) — also includes `BMSChargeDisabled` for fault code 59 (undocumented in §7.1; observed when BMS reports 100% SOC — BMS-side charge cutoff). `None` when no active faults. *diagnostic* |
 | `software_version` | `CPU1 v9.00 / CPU2 v1.04` | `0x0014`–`0x0015` — *diagnostic* |
 | `hardware_version` | `Control v3.00 / Power v3.04` | `0x0016`–`0x0017` — *diagnostic* |
 | `serial_number` | `ANJ2602260356-100132` | `0x0035`–`0x0048` (ASCII, low byte per reg) — *diagnostic* |
