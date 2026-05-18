@@ -26,8 +26,15 @@ CONF_SOC_SWITCH_TO_MAINS = "soc_switch_to_mains"
 CONF_SOC_SWITCH_TO_INVERTER = "soc_switch_to_inverter"
 
 # Register addresses + per-register defaults (kept in sync with REG_* in cpp)
-REG_MAX_CHARGE_CURRENT = 0xE20A          # 0..200 A per manual item 07, scale 0.1
-REG_MAINS_CHARGE_CURRENT_LIMIT = 0xE205  # 0..100 A on Anenji firmware (manual says 0..120 but firmware rejects > 100), scale 0.1
+#
+# IMPORTANT: the V1.7 protocol PDF labels these the other way around
+# (E205="Mains charge current limit", E20A="Maximum charge current"), but the
+# Anenji 12KW firmware empirically behaves with the labels REVERSED:
+#   - 0xE205 is the battery / max charge current  → manual item 07, 0..200 A
+#   - 0xE20A is the mains-side charge current cap → manual item 28, rejects >100 A
+# Trust the hardware, not the PDF.
+REG_MAX_CHARGE_CURRENT = 0xE205          # battery side, 0..200 A, scale 0.1
+REG_MAINS_CHARGE_CURRENT_LIMIT = 0xE20A  # mains side, 0..100 A (firmware-capped), scale 0.1
 REG_OUTPUT_VOLTAGE = 0xE208              # 100..264 V, scale 0.1
 
 # SOC thresholds (per §5.2 menu items 58-62; addresses tentative — calibrated
