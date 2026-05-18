@@ -25,6 +25,11 @@ CHARGE_PRIORITY_OPTIONS = ["PV preferred", "Mains preferred", "Hybrid", "PV only
 #   Indices: 0=User-defined, 1=Sealed lead-acid, 2=Flooded lead-acid, 3=Gel,
 #   6,7,8=L14/L15/L16 LFP variants (commonly used here), 4,5,9-12 reserved,
 #   13,14=N13/N14 ternary Li-ion. Index defines the wire value.
+#
+#   NOTE: the Anenji 12KW firmware refuses writes to 0xE004 with Modbus error
+#   0x0B (permission denied) — battery type is keypad-only on that hardware.
+#   Use the `text_sensor.battery_type` read-only mirror instead. This select
+#   option is still exposed for SRNE variants where the write IS accepted.
 BATTERY_TYPE_OPTIONS = [
     "User-defined",       # 0
     "Sealed lead-acid",   # 1

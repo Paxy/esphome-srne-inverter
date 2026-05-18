@@ -89,6 +89,7 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   void set_software_version_text_sensor(text_sensor::TextSensor *s) { software_version_text_sensor_ = s; }
   void set_hardware_version_text_sensor(text_sensor::TextSensor *s) { hardware_version_text_sensor_ = s; }
   void set_serial_number_text_sensor(text_sensor::TextSensor *s) { serial_number_text_sensor_ = s; }
+  void set_battery_type_text_sensor(text_sensor::TextSensor *s) { battery_type_text_sensor_ = s; }
 
   // Selects (write-back via Modbus function 0x06)
   void set_output_priority_select(select::Select *s) { output_priority_select_ = s; }
@@ -206,6 +207,7 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   text_sensor::TextSensor *software_version_text_sensor_{nullptr};
   text_sensor::TextSensor *hardware_version_text_sensor_{nullptr};
   text_sensor::TextSensor *serial_number_text_sensor_{nullptr};
+  text_sensor::TextSensor *battery_type_text_sensor_{nullptr};
 
   // Selects (writable, read back from settings block F1/F2)
   select::Select *output_priority_select_{nullptr};

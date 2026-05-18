@@ -86,6 +86,7 @@ Entities marked *diagnostic* are placed under the **Diagnostic** section of the 
 | `software_version` | `CPU1 v9.00 / CPU2 v1.04` | `0x0014`–`0x0015` — *diagnostic* |
 | `hardware_version` | `Control v3.00 / Power v3.04` | `0x0016`–`0x0017` — *diagnostic* |
 | `serial_number` | `ANJ2602260356-100132` | `0x0035`–`0x0048` (ASCII, low byte per reg) — *diagnostic* |
+| `battery_type` | `LFP L14 (raw 0x06)` | `0xE004` decoded — read-only mirror; the writable select is firmware-locked on Anenji (see [Known firmware locks](#known-firmware-locks)). *diagnostic* |
 
 ### Writable settings (Modbus function `0x06`)
 
@@ -96,8 +97,7 @@ All marked as Configuration entities in HA. Changing one in HA writes immediatel
 | `select.output_priority` | `SBU` | `0xE204` | Solar / Line / SBU |
 | `select.charge_priority` | `Hybrid` | `0xE20F` | PV preferred / Mains preferred / Hybrid / PV only |
 | `select.ac_input_voltage_range` | `APL` | `0xE20B` | UPS (120/110 V, 90-140 V) / APL (100/105 V, 85-140 V) |
-| `select.battery_type` | `LFP L14` | `0xE004` | User-defined / SLD / FLD / Gel / LFP L14-L16 / Ternary N13-N14 |
-| `select.parallel_mode` | `SIG (single)` | `0xE201` | SIG / PAL / 2P0-2P2 / 3P1-3P3 |
+| `select.parallel_mode` | `SIG (single)` | `0xE201` | SIG / PAL / 2P0-2P2 / 3P1-3P3 — **only writable while inverter is shut down** (runtime writes return error 0x08) |
 | `number.output_voltage` | `120.0 V` | `0xE208` | 100-264 V |
 | `number.max_charge_current` | (slow-poll pending) | `0xE20A` | 0-150 A |
 | `number.mains_charge_current_limit` | (slow-poll pending) | `0xE205` | 0-100 A |
@@ -113,6 +113,17 @@ All marked as Configuration entities in HA. Changing one in HA writes immediatel
 | `switch.inverter_to_bypass` | (slow-poll pending) | `0xE212` | |
 
 SOC thresholds only take effect when BMS communication is up (menu items 32 = `485` and 33 = matching protocol). The register addresses for the SOC settings were calibrated from scan defaults — verify against your firmware before trusting; the manual doesn't publish register addresses.
+
+### Known firmware locks
+
+Verified empirically on the Anenji 12KW (CPU1 v9.00 / CPU2 v1.04) — the component now decodes Modbus exception codes and logs the failing register, so you'll see the failure mode in the log even if a write looks like it "worked" optimistically:
+
+| Register | Behaviour | Mitigation |
+|---|---|---|
+| `0xE004` battery_type | **Permission denied (`0x0B`)** at all times — Anenji firmware locks this register against Modbus writes to prevent setting a destructive value. | `atoms3r-example.yaml` exposes a read-only `text_sensor.battery_type` mirror; change via the keypad (menu item 08). The writable `select.battery_type` schema option is kept for non-Anenji variants. |
+| `0xE201` parallel_mode | **Cannot be changed while running (`0x08`)** — works only when the inverter is in the `Shutdown by user` state. | Shut down the inverter, change in HA, restart. |
+
+If your firmware variant accepts writes to `0xE004`, swap `text_sensor.battery_type` back to `select.battery_type` in your YAML — the select implementation is still wired up.
 
 ## Protocol
 

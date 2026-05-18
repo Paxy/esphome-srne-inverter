@@ -380,8 +380,10 @@ void SrneInverter::update() {
       this->expected_steps_.push(13);
       this->send(FUNCTION_READ_HOLDING, REG_BLOCK_F6_START, REG_BLOCK_F6_COUNT);
     }
-    // Block G (battery type) — lives in the P05 settings range, not P07
-    bool want_g = this->battery_type_select_ != nullptr;
+    // Block G (battery type) — lives in the P05 settings range, not P07.
+    // Poll if either the writable select OR the read-only text_sensor is set.
+    bool want_g = (this->battery_type_select_ != nullptr) ||
+                  (this->battery_type_text_sensor_ != nullptr);
     if (want_g) {
       this->expected_steps_.push(14);
       this->send(FUNCTION_READ_HOLDING, REG_BLOCK_G_START, REG_BLOCK_G_COUNT);
@@ -877,8 +879,28 @@ void SrneInverter::decode_block_f6_(const uint8_t *p, size_t byte_count) {
 void SrneInverter::decode_block_g_(const uint8_t *p, size_t byte_count) {
   if (byte_count < BLOCK_G_BYTE_COUNT) return;
   // 0xE004 battery_type (enum)
+  uint16_t raw = get_u16(p, 0);
   if (this->battery_type_select_ != nullptr) {
-    static_cast<SrneSelect *>(this->battery_type_select_)->publish_from_raw(get_u16(p, 0));
+    static_cast<SrneSelect *>(this->battery_type_select_)->publish_from_raw(raw);
+  }
+  if (this->battery_type_text_sensor_ != nullptr) {
+    // Show the decoded name AND the raw register value so the user can sanity-
+    // check the (incomplete) PDF-derived enum against the inverter's keypad.
+    const char *name;
+    switch (raw) {
+      case 0: name = "User-defined"; break;
+      case 1: name = "Sealed lead-acid"; break;
+      case 2: name = "Flooded lead-acid"; break;
+      case 3: name = "Gel"; break;
+      case 6: name = "LFP L14"; break;
+      case 7: name = "LFP L15"; break;
+      case 8: name = "LFP L16"; break;
+      case 13: name = "Ternary N13"; break;
+      case 14: name = "Ternary N14"; break;
+      default: name = "Unknown"; break;
+    }
+    this->publish_state_(this->battery_type_text_sensor_,
+                         str_sprintf("%s (raw 0x%02X)", name, raw));
   }
 }
 

@@ -12,6 +12,10 @@ CONF_FAULT_CODES = "fault_codes"
 CONF_SOFTWARE_VERSION = "software_version"
 CONF_HARDWARE_VERSION = "hardware_version"
 CONF_SERIAL_NUMBER = "serial_number"
+# Read-only mirror of register 0xE004. Use this instead of `select.battery_type`
+# on firmware that refuses Modbus writes to that register (Anenji 12KW returns
+# error 0x0B). Format: "<decoded name> (raw 0x%02X)".
+CONF_BATTERY_TYPE = "battery_type"
 
 CONFIG_SCHEMA = SRNE_INVERTER_COMPONENT_SCHEMA.extend(
     {
@@ -21,6 +25,7 @@ CONFIG_SCHEMA = SRNE_INVERTER_COMPONENT_SCHEMA.extend(
         cv.Optional(CONF_SOFTWARE_VERSION): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_HARDWARE_VERSION): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_SERIAL_NUMBER): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_BATTERY_TYPE): text_sensor.text_sensor_schema(),
     }
 )
 
@@ -35,6 +40,7 @@ async def to_code(config):
         CONF_SOFTWARE_VERSION: hub.set_software_version_text_sensor,
         CONF_HARDWARE_VERSION: hub.set_hardware_version_text_sensor,
         CONF_SERIAL_NUMBER: hub.set_serial_number_text_sensor,
+        CONF_BATTERY_TYPE: hub.set_battery_type_text_sensor,
     }
     for key, setter in mapping.items():
         if key in config:

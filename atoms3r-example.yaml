@@ -224,6 +224,13 @@ text_sensor:
     serial_number:
       name: "Inverter Serial"
       entity_category: diagnostic
+    # Read-only mirror of 0xE004 (the writable select is firmware-locked on
+    # Anenji — see comment in the `select:` section). Format is
+    # "<decoded name> (raw 0x%02X)" so the raw value can be cross-checked
+    # against the inverter keypad if the enum mapping ever looks suspicious.
+    battery_type:
+      name: "Battery Type"
+      entity_category: diagnostic
 
 switch:
   - platform: restart
@@ -251,12 +258,18 @@ select:
       name: "Output Priority"
     charge_priority:
       name: "Charge Priority"
-    battery_type:
-      name: "Battery Type"
     ac_input_voltage_range:
       name: "AC Input Voltage Range"
+    # parallel_mode writes return Modbus error 0x08 ("parameter cannot be
+    # changed while running"). Keypad-only at runtime; if you genuinely need
+    # to change it via Modbus, shut down first.
     parallel_mode:
       name: "Parallel Mode"
+    # battery_type writes return Modbus error 0x0B ("permission denied") on
+    # Anenji firmware — the inverter locks this register against Modbus
+    # writes to prevent damaging the battery with a wrong value. Use the
+    # text_sensor mirror below for read-only display; change via keypad
+    # (menu item 08) only.
 
 number:
   - platform: srne_inverter
