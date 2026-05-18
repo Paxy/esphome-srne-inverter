@@ -27,14 +27,15 @@ CONF_SOC_SWITCH_TO_INVERTER = "soc_switch_to_inverter"
 
 # Register addresses + per-register defaults (kept in sync with REG_* in cpp)
 #
-# IMPORTANT: the V1.7 protocol PDF labels these the other way around
-# (E205="Mains charge current limit", E20A="Maximum charge current"), but the
-# Anenji 12KW firmware empirically behaves with the labels REVERSED:
-#   - 0xE205 is the battery / max charge current  → manual item 07, 0..200 A
-#   - 0xE20A is the mains-side charge current cap → manual item 28, rejects >100 A
-# Trust the hardware, not the PDF.
-REG_MAX_CHARGE_CURRENT = 0xE205          # battery side, 0..200 A, scale 0.1
-REG_MAINS_CHARGE_CURRENT_LIMIT = 0xE20A  # mains side, 0..100 A (firmware-capped), scale 0.1
+# Register labels per V1.7 protocol PDF, confirmed empirically on Anenji 12KW
+# firmware. Firmware caps differ from both the PDF AND the user manual in
+# places — actual hardware behaviour is the source of truth:
+#   - 0xE205 mains-side charge current  → manual item 28, firmware caps at 120 A
+#                                         (PDF said 100, manual said 120)
+#   - 0xE20A battery / max charge current → manual item 07, range 0..200 A
+#                                         (PDF said 150, manual says 200)
+REG_MAX_CHARGE_CURRENT = 0xE20A          # battery side, 0..200 A, scale 0.1
+REG_MAINS_CHARGE_CURRENT_LIMIT = 0xE205  # mains side, 0..120 A, scale 0.1
 REG_OUTPUT_VOLTAGE = 0xE208              # 100..264 V, scale 0.1
 
 # SOC thresholds (per §5.2 menu items 58-62; addresses tentative — calibrated
@@ -135,7 +136,7 @@ async def to_code(config):
         n = await _make_number(
             config[CONF_MAINS_CHARGE_CURRENT_LIMIT],
             min_value=0,
-            max_value=100,
+            max_value=120,
             step=1,
             register_addr=REG_MAINS_CHARGE_CURRENT_LIMIT,
             scale=0.1,
