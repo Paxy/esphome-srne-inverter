@@ -103,9 +103,9 @@ binary_sensor:
     grid_present:
       name: "Grid Present"
       id: inv_grid_present
-    inverter_on:
-      name: "Inverter On"
-      id: inv_on
+    inverter_on_load:
+      name: "Inverter On Load"
+      id: inv_on_load
     fault:
       name: "Inverter Fault"
       id: inv_fault
@@ -346,7 +346,7 @@ display:
       if (id(inv_fault).state) {
         dot_color = COLOR_RED;
         status = "FAULT";
-      } else if (id(inv_on).state) {
+      } else if (id(inv_on_load).state) {
         dot_color = COLOR_GREEN;
         status = id(inv_grid_present).state ? "Hybrid" : "Off-grid";
       } else if (id(inv_grid_present).state) {

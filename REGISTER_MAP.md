@@ -27,7 +27,7 @@ The password-protection status register at `0x0211` silently times out on this S
 
 | Reg | Name | Type | Mult | Unit | Sensor |
 |---|---|---|---|---|---|
-| 0x0210 | Machine state | u16 | — | enum | `machine_state` (text), `inverter_on` (binary) |
+| 0x0210 | Machine state | u16 | — | enum | `machine_state` (text), `inverter_on_load` (binary) |
 
 ### Block B1 — bus/grid/inverter/load (`0x0212`–`0x021F`, 14 regs)
 

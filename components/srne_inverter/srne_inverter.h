@@ -78,7 +78,7 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   // Binary sensors
   void set_online_status_binary_sensor(binary_sensor::BinarySensor *s) { online_status_binary_sensor_ = s; }
   void set_grid_present_binary_sensor(binary_sensor::BinarySensor *s) { grid_present_binary_sensor_ = s; }
-  void set_inverter_on_binary_sensor(binary_sensor::BinarySensor *s) { inverter_on_binary_sensor_ = s; }
+  void set_inverter_on_load_binary_sensor(binary_sensor::BinarySensor *s) { inverter_on_load_binary_sensor_ = s; }
   void set_fault_binary_sensor(binary_sensor::BinarySensor *s) { fault_binary_sensor_ = s; }
   void set_split_phase_mode_binary_sensor(binary_sensor::BinarySensor *s) { split_phase_mode_binary_sensor_ = s; }
 
@@ -195,7 +195,7 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   // Binary sensors
   binary_sensor::BinarySensor *online_status_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *grid_present_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *inverter_on_binary_sensor_{nullptr};
+  binary_sensor::BinarySensor *inverter_on_load_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *fault_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *split_phase_mode_binary_sensor_{nullptr};
 

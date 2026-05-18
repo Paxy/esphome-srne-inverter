@@ -245,7 +245,7 @@ void SrneInverter::dump_config() {
   LOG_SENSOR("  ", "Load W", this->load_active_power_sensor_);
   LOG_BINARY_SENSOR("  ", "Online Status", this->online_status_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Grid Present", this->grid_present_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "Inverter On", this->inverter_on_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Inverter On Load", this->inverter_on_load_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Fault", this->fault_binary_sensor_);
   LOG_TEXT_SENSOR("  ", "Machine State", this->machine_state_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Charge State", this->charge_state_text_sensor_);
@@ -603,10 +603,12 @@ void SrneInverter::decode_block_b0_(const uint8_t *p, size_t byte_count) {
   uint16_t machine_state = get_u16(p, 0);
   this->publish_state_(this->machine_state_text_sensor_, this->decode_machine_state_(machine_state));
 
-  // Authoritative inverter_on: state == 5 (Inverter powered) or 7 (Mains->Inverter).
+  // Authoritative inverter_on_load: state == 5 (Inverter powered) or 7
+  // (Mains->Inverter). On any other state the load is fed from grid or the
+  // inverter is in soft-start/standby/fault — i.e. NOT "on load".
   // Overrides the voltage-based fallback in decode_block_b1_.
-  bool inverter_on = (machine_state == 5) || (machine_state == 7);
-  this->publish_state_(this->inverter_on_binary_sensor_, inverter_on);
+  bool inverter_on_load = (machine_state == 5) || (machine_state == 7);
+  this->publish_state_(this->inverter_on_load_binary_sensor_, inverter_on_load);
 }
 
 void SrneInverter::decode_block_b1_(const uint8_t *p, size_t byte_count) {

@@ -62,8 +62,8 @@ binary_sensor:
       name: "${name} online"
     grid_present:
       name: "${name} grid present"
-    inverter_on:
-      name: "${name} inverter on"
+    inverter_on_load:
+      name: "${name} inverter on load"
     fault:
       name: "${name} fault"
 

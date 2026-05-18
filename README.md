@@ -25,34 +25,36 @@ Designed and developed against an **Anenji 12KW (SRNE SN ANJ2602260356-100132, f
 
 Values below are real readings from the Anenji 12KW at runtime (battery 86% SOC, no grid connected, no PV connected, inverter in soft-start standby).
 
+Entities marked *diagnostic* are placed under the **Diagnostic** section of the HA device card by `atoms3r-example.yaml` (HVDC link, heatsink temps, fault/state/version/serial — see [`atoms3r-example.yaml`](atoms3r-example.yaml) for the exact `entity_category` settings). The display names shown in HA may differ from the schema keys; both are noted where they diverge.
+
 ### Sensors
 
 | Entity | Live value | Register | Notes |
 |---|---|---|---|
 | `battery_soc` | `86 %` | `0x0100` | |
 | `battery_voltage` | `53.4 V` | `0x0101` | |
-| `battery_current` | `1.7 A` | `0x0102` | signed; negative = discharging |
+| `battery_current` | `1.7 A` | `0x0102` | signed; negative = discharging. `atoms3r-example.yaml` exposes this as **"Battery Discharge Current"** |
 | `battery_charge_current` | `0.0 A` | `0x021E` | mains-side charge current |
 | `pv_charge_current` | `0.0 A` | `0x0224` | PV-side charge current |
 | `charge_power` | `0 W` | `0x010E` | mains + PV combined |
 | `pv1_voltage / current / power` | `0 V / 0 A / 0 W` | `0x0107`–`0x0109` | |
 | `pv2_voltage / current / power` | `0 V / 0 A / 0 W` | `0x010F`–`0x0111` | |
 | `pv_total_power` | `0 W` | derived | `pv1_power + pv2_power` |
-| `bus_voltage` | `527.9 V` | `0x0212` | total HVDC link |
-| `dc_bus_positive_voltage` | `263.9 V` | `0x0228` | undocumented in PDF, found via scan |
-| `dc_bus_negative_voltage` | `264.0 V` | `0x0229` | undocumented; +/-264V sums ≈ `bus_voltage` |
+| `bus_voltage` | `527.9 V` | `0x0212` | total HVDC link — *diagnostic* |
+| `dc_bus_positive_voltage` | `263.9 V` | `0x0228` | "DC Bus +" — undocumented in PDF, found via scan — *diagnostic* |
+| `dc_bus_negative_voltage` | `264.0 V` | `0x0229` | "DC Bus -" — undocumented; +/-264V sums ≈ `bus_voltage` — *diagnostic* |
 | `grid_voltage / current / frequency` | `0 / 0 / 0` | `0x0213`–`0x0215` | (grid not connected) |
-| `inverter_voltage` | `120.5 V` | `0x0216` | L1 |
-| `inverter_current` | `1.3 A` | `0x0217` | L1 |
+| `inverter_voltage` | `120.5 V` | `0x0216` | L1 (display name "Inverter Voltage L1") |
+| `inverter_current` | `1.3 A` | `0x0217` | L1 (display name "Inverter Current L1") |
 | `inverter_frequency` | `59.99 Hz` | `0x0218` | |
 | `inverter_voltage_l2` | `120.4 V` | `0x022C` | L2 (split-phase / parallel) |
 | `inverter_current_l2` | `1.2 A` | `0x022E` | L2 |
 | `inverter_voltage_l1_l2` | `240.9 V` | derived | **mode-aware**: sum in split, `\|L1-L2\|` in parallel |
 | `inverter_current_total` | `2.5 A` | derived | L1 + L2 |
-| `load_current` | `0.4 A` | `0x0219` | L1 |
-| `load_active_power` | `0 W` | `0x021B` | L1 |
-| `load_apparent_power` | `57 VA` | `0x021C` | L1 |
-| `load_percent` | `0 %` | `0x021F` | L1 |
+| `load_current` | `0.4 A` | `0x0219` | L1 (display name "Load Current L1") |
+| `load_active_power` | `0 W` | `0x021B` | L1 (display name "Load Power L1") |
+| `load_apparent_power` | `57 VA` | `0x021C` | L1 (display name "Load Apparent Power L1") |
+| `load_percent` | `0 %` | `0x021F` | L1 (display name "Load Percent L1") |
 | `load_current_l2` | `0.0 A` | `0x0230` | |
 | `load_active_power_l2` | `3 W` | `0x0232` | |
 | `load_apparent_power_l2` | `9 VA` | `0x0234` | |
@@ -60,30 +62,30 @@ Values below are real readings from the Anenji 12KW at runtime (battery 86% SOC,
 | `load_current_total` | `0.4 A` | derived | L1 + L2 |
 | `load_active_power_total` | `3 W` | derived | total real power |
 | `load_apparent_power_total` | `66 VA` | derived | total apparent |
-| `heatsink_a_temperature` | `31.4 °C (88.5 °F)` | `0x0220` | DC-DC |
-| `heatsink_b_temperature` | `43.3 °C (109.9 °F)` | `0x0221` | DC-AC |
-| `heatsink_c_temperature` | `57.8 °C (136.0 °F)` | `0x0222` | transformer |
+| `heatsink_a_temperature` | `31.4 °C (88.5 °F)` | `0x0220` | DC-DC — *diagnostic* |
+| `heatsink_b_temperature` | `43.3 °C (109.9 °F)` | `0x0221` | DC-AC — *diagnostic* |
+| `heatsink_c_temperature` | `57.8 °C (136.0 °F)` | `0x0222` | transformer — *diagnostic* |
 
 ### Binary sensors
 
 | Entity | Live value | Source |
 |---|---|---|
 | `online_status` | `On` | watchdog on Modbus responses |
-| `inverter_on` | `Off` | `machine_state` == 5 (Inverter powered) or 7 (Mains→Inverter); currently 3 (Soft start) |
+| `inverter_on_load` | `Off` | `machine_state` == 5 (Inverter powered) or 7 (Mains→Inverter). True only when the inverter is actively driving the load (UPS "on-load" sense); false in mains bypass, soft-start/standby, shutdown, or fault. |
 | `grid_present` | `Off` | `grid_voltage > 50 V` |
 | `fault` | `Off` | any of `0x0200`–`0x0203` ≠ 0 (block C not exposed on this firmware) |
-| `split_phase_mode` | `On` | `0xE21E == 2` (= 180° split); `Off` = parallel/0° |
+| `split_phase_mode` | `On` | `0xE21E == 2` (= 180° split); `Off` = parallel/0° — *diagnostic* |
 
 ### Text sensors
 
 | Entity | Live value | Source |
 |---|---|---|
-| `machine_state` | `Soft start` | `0x0210` decoded (11 known states) |
+| `machine_state` | `Soft start` | `0x0210` decoded (11 known states) — *diagnostic* |
 | `charge_state` | `Off` | `0x010B` decoded |
-| `fault_codes` | `None` | `0x0204`–`0x0207` decoded to symbolic names per the manual (`BatVoltLow`, `OverloadInverter`, `ParaAcSrcDiff`, …) — `None` when no active faults |
-| `software_version` | `CPU1 v9.00 / CPU2 v1.04` | `0x0014`–`0x0015` |
-| `hardware_version` | `Control v3.00 / Power v3.04` | `0x0016`–`0x0017` |
-| `serial_number` | `ANJ2602260356-100132` | `0x0035`–`0x0048` (ASCII, low byte per reg) |
+| `fault_codes` | `None` | `0x0204`–`0x0207` decoded to symbolic names per the manual (`BatVoltLow`, `OverloadInverter`, `ParaAcSrcDiff`, …) — also includes `BMSChargeFull` for fault code 59 (undocumented in §7.1; observed when BMS reports 100% SOC). `None` when no active faults. *diagnostic* |
+| `software_version` | `CPU1 v9.00 / CPU2 v1.04` | `0x0014`–`0x0015` — *diagnostic* |
+| `hardware_version` | `Control v3.00 / Power v3.04` | `0x0016`–`0x0017` — *diagnostic* |
+| `serial_number` | `ANJ2602260356-100132` | `0x0035`–`0x0048` (ASCII, low byte per reg) — *diagnostic* |
 
 ### Writable settings (Modbus function `0x06`)
 
