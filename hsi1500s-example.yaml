@@ -1,14 +1,15 @@
 # ============================================================================
 # SRNE HSI-1500S — ESPHome Configuration
 # ============================================================================
-# Adapted for SRNE HSI-1500S (1.5KW, 12V, Single Phase, Single MPPT)
-# Based on RAR/esphome-srne-inverter, with corrections from Modbus scan.
+# Example config for the SRNE HSI-1500S (1.5KW, 12V, single phase, single
+# MPPT). No component changes are needed for this model: the component
+# detects the smaller register space at runtime and shrinks its Block A/B2
+# reads automatically (see REGISTER_MAP_HSI1500S.md).
 #
-# What changed vs original RAR YAML:
-#   - Removed PV2 sensors (HSI-1500S has single MPPT)
-#   - Removed L2/split-phase sensors (0x0228+ don't exist)
-#   - Removed DC Bus +/- sensors (0x0228/0x0229 don't exist)
-#   - Removed inverter_voltage_l1_l2 and total sensors (no L2)
+# What changed vs the other example YAMLs:
+#   - No PV2 sensors (HSI-1500S has a single MPPT; pv_total_power = PV1)
+#   - No L2/split-phase or combined L1+L2 sensors (single phase)
+#   - No DC Bus +/- sensors (0x0228/0x0229 don't exist on this model)
 #   - All diagnostics, sensors, switches, selects and numbers retained
 #
 # Battery: 12V LFP (4S, nominal 12.8V, full 13.6V, empty 10.0V)
@@ -49,7 +50,7 @@ logger:
 
 api:
   encryption:
-    key: "W4/24v8jJDKPGCchtfi0L7lXjwRMDHvXrKRsi6vDb6w="
+    key: !secret api_encryption_key
 
 ota:
   - platform: esphome

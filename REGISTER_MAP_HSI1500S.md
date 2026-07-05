@@ -42,7 +42,7 @@ Two scans were performed (12:49 and 12:57, July 5 2026).
 
 ---
 
-### Page 0x01 — PV / Battery (0x0100-0x010F)
+### Page 0x01 — PV / Battery (0x0100-0x010E)
 
 | Address | Type | Multiplier | Description | Scan 2 | Real value |
 |---------|------|------------|-------------|--------|------------|
@@ -63,8 +63,11 @@ Two scans were performed (12:49 and 12:57, July 5 2026).
 | 0x010E | u16 | ×1 W | Charge Power (total) | 0 | 0W |
 | 0x010F | — | — | **Does not exist** (PV2 on larger models) | ERROR | — |
 
-> **IMPORTANT:** 0x0110+ return ERROR 0x02 — HSI-1500S has no PV2 or
-> extended PV registers. Only 0x0100-0x010F exist.
+> **IMPORTANT:** 0x010F+ return ERROR 0x02 (see scan table above) — HSI-1500S
+> has no PV2 or extended PV registers; only 0x0100-0x010E exist. No
+> configuration is needed: the component discovers this at runtime by
+> shrinking the Block A read one register per exception until the inverter
+> accepts it (see REGISTER_MAP.md).
 
 ---
 
@@ -252,10 +255,6 @@ Found exclusively on the HSI-1500S model. Content is partially unknown.
 
 | File | Description |
 |------|-------------|
-| `srne-hsi1500s.yaml` | **Final ESPHome YAML** — flash to ESP32 |
-| `srne-hsi1500s-scan.yaml` | Scanner firmware (temporary) |
-| `srne-hsi1500s-scan-logs.txt` | Log from second scan |
-| `SRNE_HSI1500S_REGISTER_MAP.md` | This file — register map |
-| `parse_scan.py` | Python parser for scan logs |
-| `scan_diff.py` | Tool for comparing two scans |
-| `README_SCAN.md` | Scanning instructions |
+| `hsi1500s-example.yaml` | Example ESPHome config for the HSI-1500S |
+| `REGISTER_MAP_HSI1500S.md` | This file — HSI-1500S register map |
+| `REGISTER_MAP.md` | Canonical register map for the component (all models) |

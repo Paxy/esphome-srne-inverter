@@ -19,6 +19,7 @@ Designed and developed against an **Anenji 12KW (SRNE SN ANJ2602260356-100132, f
    - `esp32-example.yaml` — generic ESP32 DevKit (Arduino)
    - `esp32s3-example.yaml` — generic ESP32-S3 (ESP-IDF)
    - `atoms3r-example.yaml` — M5Stack AtomS3R with the LCD live-status display
+   - `hsi1500s-example.yaml` — SRNE HSI-1500S (single-MPPT, single-phase; see `REGISTER_MAP_HSI1500S.md`)
 4. `esphome run <chosen>.yaml`.
 
 ## Live snapshot — every supported entity
