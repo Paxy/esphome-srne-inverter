@@ -42,7 +42,7 @@ Two scans were performed (12:49 and 12:57, July 5 2026).
 
 ---
 
-### Page 0x01 — PV / Battery (0x0100-0x010E)
+### Page 0x01 — PV / Battery (0x0100-0x010F)
 
 | Address | Type | Multiplier | Description | Scan 2 | Real value |
 |---------|------|------------|-------------|--------|------------|
@@ -61,13 +61,14 @@ Two scans were performed (12:49 and 12:57, July 5 2026).
 | 0x010C | u16 | ? | Unknown | 0 | — |
 | 0x010D | u16 | ? | Unknown | 0 | — |
 | 0x010E | u16 | ×1 W | Charge Power (total) | 0 | 0W |
-| 0x010F | — | — | **Does not exist** (PV2 on larger models) | ERROR | — |
+| 0x010F | u16 | ×0.1 V | PV2 Voltage (slot exists, single MPPT — reads 0) | 0 | 0.0V |
 
-> **IMPORTANT:** 0x010F+ return ERROR 0x02 (see scan table above) — HSI-1500S
-> has no PV2 or extended PV registers; only 0x0100-0x010E exist. No
-> configuration is needed: the component discovers this at runtime by
-> shrinking the Block A read one register per exception until the inverter
-> accepts it (see REGISTER_MAP.md).
+> **IMPORTANT:** 0x0110+ return ERROR 0x02 — HSI-1500S has no PV2 current/power
+> or extended PV registers; only 0x0100-0x010F exist (the PV2 voltage slot at
+> 0x010F responds but reads 0, confirmed on-device). No configuration is
+> needed: the component discovers the boundary at runtime by shrinking the
+> Block A read one register per exception until the inverter accepts it
+> (see REGISTER_MAP.md).
 
 ---
 
@@ -199,7 +200,7 @@ Found exclusively on the HSI-1500S model. Content is partially unknown.
 
 | Feature | Register | Status | Reason |
 |---------|----------|--------|--------|
-| PV2 Voltage | 0x010F+ | ❌ ERROR | Single MPPT |
+| PV2 Voltage | 0x010F | reads 0 | Single MPPT — register responds but no PV2 hardware |
 | PV2 Current | 0x0110+ | ❌ ERROR | Single MPPT |
 | PV2 Power | 0x0111+ | ❌ ERROR | Single MPPT |
 | DC Bus + | 0x0228 | ❌ ERROR | No split-phase |
