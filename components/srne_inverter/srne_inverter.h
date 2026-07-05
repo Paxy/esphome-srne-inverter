@@ -243,6 +243,12 @@ class SrneInverter : public PollingComponent, public srne_modbus::SrneModbusDevi
   uint32_t update_counter_{0};
   std::queue<uint8_t> expected_steps_;
 
+  // Adaptive request sizes for blocks A and B2: initialized to the full block
+  // in setup(), shrunk at runtime when a model rejects the tail registers
+  // with Modbus exception 0x02 (see the block comments in srne_inverter.cpp).
+  uint16_t block_a_count_{0};
+  uint16_t block_b2_count_{0};
+
   // One-shot register-space scan support
   bool scan_on_boot_{false};
   std::queue<uint16_t> scan_regs_in_flight_;

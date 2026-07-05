@@ -9,10 +9,16 @@ static const char *const TAG = "srne_inverter";
 
 static const uint8_t FUNCTION_READ_HOLDING = 0x03;
 
-// Block A: controller / PV — 0x0100..0x0111 (18 regs, 36 bytes)
+// Block A: controller / PV — 0x0100..0x0111 (18 regs, 36 bytes).
+// Single-MPPT models (e.g. HSI-1500S, issue #1/PR #2) don't implement the
+// PV2 registers at the tail and reject any read spanning them with Modbus
+// exception 0x02, which fails the whole block. The request size therefore
+// adapts at runtime: it starts at REG_BLOCK_A_COUNT and shrinks one register
+// per rejection down to REG_BLOCK_A_MIN_COUNT (0x0100..0x010E, everything
+// through charge_power). decode_block_a_ publishes only what arrived.
 static const uint16_t REG_BLOCK_A_START = 0x0100;
 static const uint16_t REG_BLOCK_A_COUNT = 0x12;
-static const uint8_t BLOCK_A_BYTE_COUNT = 0x24;
+static const uint16_t REG_BLOCK_A_MIN_COUNT = 0x0F;
 
 // Block B is split because at least one SRNE firmware variant silently
 // times out on reads spanning the password-protection status register at
@@ -33,9 +39,13 @@ static const uint8_t BLOCK_B1_BYTE_COUNT = 0x1C;
 // Block B2: heatsinks + PV charge + DC bus rails — 0x0220..0x0229 (10 regs)
 // 0x0228 and 0x0229 are undocumented but the register-space scan showed they
 // hold the positive/negative DC bus rail voltages (sum ≈ bus_voltage at 0x0212).
+// Smaller models don't implement the DC bus rail registers (0x0228+) and
+// reject the whole read with exception 0x02, so this block adapts at runtime
+// like Block A, down to REG_BLOCK_B2_MIN_COUNT (0x0220..0x0224, heatsinks +
+// pv_charge_current).
 static const uint16_t REG_BLOCK_B2_START = 0x0220;
 static const uint16_t REG_BLOCK_B2_COUNT = 0x0A;
-static const uint8_t BLOCK_B2_BYTE_COUNT = 0x14;
+static const uint16_t REG_BLOCK_B2_MIN_COUNT = 0x05;
 
 // Block B3: L2 (split-phase / parallel-120 second-leg) data — 0x022A..0x0236
 // PDF marks these "specific machine models", and on this inverter they only
@@ -268,6 +278,8 @@ void SrneInverter::dump_config() {
 float SrneInverter::get_setup_priority() const { return setup_priority::DATA; }
 
 void SrneInverter::setup() {
+  this->block_a_count_ = REG_BLOCK_A_COUNT;
+  this->block_b2_count_ = REG_BLOCK_B2_COUNT;
   if (this->scan_on_boot_) {
     this->queue_scan_();
   }
@@ -293,13 +305,13 @@ void SrneInverter::update() {
 
   // Always-on blocks (the basic readings)
   this->expected_steps_.push(0);
-  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_A_START, REG_BLOCK_A_COUNT);
+  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_A_START, this->block_a_count_);
   this->expected_steps_.push(9);
   this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B0_START, REG_BLOCK_B0_COUNT);
   this->expected_steps_.push(1);
   this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B1_START, REG_BLOCK_B1_COUNT);
   this->expected_steps_.push(2);
-  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B2_START, REG_BLOCK_B2_COUNT);
+  this->send(FUNCTION_READ_HOLDING, REG_BLOCK_B2_START, this->block_b2_count_);
 
   // Block B3 (L2 leg) is polled if any per-leg L2 sensor OR any L1+L2
   // combined sensor is configured (the combined sensors are computed inside
@@ -470,6 +482,28 @@ void SrneInverter::on_modbus_data(const std::vector<uint8_t> &data) {
         ESP_LOGW(TAG, "SCAN ERROR 0x%02X but scan queue is empty", err_code);
       }
     } else {
+      // Smaller models don't implement the tail registers of blocks A and B2
+      // and reject the whole read with exception 0x02 (illegal data address).
+      // Shrink the request one register at a time and retry next poll; the
+      // learned size sticks until reboot. Keyed off the modbus layer's
+      // in-flight request (not the step queue) so a failed write can't
+      // trigger a spurious shrink.
+      bool rejected_read = err_code == 0x02 &&
+                           this->parent_->get_in_flight_function() == FUNCTION_READ_HOLDING;
+      if (rejected_read && this->parent_->get_in_flight_register() == REG_BLOCK_A_START &&
+          this->block_a_count_ > REG_BLOCK_A_MIN_COUNT) {
+        this->block_a_count_--;
+        ESP_LOGI(TAG, "Block A read rejected (illegal address); retrying with %u registers next poll",
+                 this->block_a_count_);
+        return;
+      }
+      if (rejected_read && this->parent_->get_in_flight_register() == REG_BLOCK_B2_START &&
+          this->block_b2_count_ > REG_BLOCK_B2_MIN_COUNT) {
+        this->block_b2_count_--;
+        ESP_LOGI(TAG, "Block B2 read rejected (illegal address); retrying with %u registers next poll",
+                 this->block_b2_count_);
+        return;
+      }
       const char *err_name;
       switch (err_code) {
         case 0x01: err_name = "illegal function"; break;
@@ -518,13 +552,13 @@ void SrneInverter::on_modbus_data(const std::vector<uint8_t> &data) {
 
   switch (step) {
     case 0:
-      if (byte_count == BLOCK_A_BYTE_COUNT) this->decode_block_a_(payload, byte_count);
+      if (byte_count == this->block_a_count_ * 2) this->decode_block_a_(payload, byte_count);
       break;
     case 1:
       if (byte_count == BLOCK_B1_BYTE_COUNT) this->decode_block_b1_(payload, byte_count);
       break;
     case 2:
-      if (byte_count == BLOCK_B2_BYTE_COUNT) this->decode_block_b2_(payload, byte_count);
+      if (byte_count == this->block_b2_count_ * 2) this->decode_block_b2_(payload, byte_count);
       break;
     case 3:
       if (byte_count == BLOCK_C_BYTE_COUNT) this->decode_block_c_(payload, byte_count);
@@ -589,7 +623,9 @@ void SrneInverter::on_modbus_data(const std::vector<uint8_t> &data) {
   // the next F1/F2/F3 read (≤5 min away) is the authoritative re-sync.
 }
 
-void SrneInverter::decode_block_a_(const uint8_t *p, size_t /*byte_count*/) {
+void SrneInverter::decode_block_a_(const uint8_t *p, size_t byte_count) {
+  if (byte_count < REG_BLOCK_A_MIN_COUNT * 2) return;
+
   // Layout (each register is 2 bytes; offset = (reg - 0x0100) * 2)
   // 0x0100 SOC | 0x0101 V x0.1 | 0x0102 I x0.1 signed | ...
   this->publish_state_(this->battery_soc_sensor_, (float) get_u16(p, 0));
@@ -611,11 +647,18 @@ void SrneInverter::decode_block_a_(const uint8_t *p, size_t /*byte_count*/) {
   this->publish_state_(this->charge_state_text_sensor_, this->decode_charge_state_(charge_state));
   // 0x010C-0x010D fault msg (skip), 0x010E charge_power
   this->publish_state_(this->charge_power_sensor_, (float) get_u16(p, 28));
-  // 0x010F PV2 V, 0x0110 PV2 I, 0x0111 PV2 W
-  this->publish_state_(this->pv2_voltage_sensor_, get_u16(p, 30) * 0.1f);
-  this->publish_state_(this->pv2_current_sensor_, get_u16(p, 32) * 0.1f);
-  uint16_t pv2_w = get_u16(p, 34);
-  this->publish_state_(this->pv2_power_sensor_, (float) pv2_w);
+  // 0x010F PV2 V, 0x0110 PV2 I, 0x0111 PV2 W — absent on single-MPPT models,
+  // where the adaptive block size stops before them (see REG_BLOCK_A_COUNT).
+  uint16_t pv2_w = 0;
+  if (byte_count >= 32)
+    this->publish_state_(this->pv2_voltage_sensor_, get_u16(p, 30) * 0.1f);
+  if (byte_count >= 34)
+    this->publish_state_(this->pv2_current_sensor_, get_u16(p, 32) * 0.1f);
+  if (byte_count >= 36) {
+    pv2_w = get_u16(p, 34);
+    this->publish_state_(this->pv2_power_sensor_, (float) pv2_w);
+  }
+  // On single-MPPT models total PV power is just PV1.
   this->publish_state_(this->pv_total_power_sensor_, (float) (pv1_w + pv2_w));
 }
 
@@ -669,9 +712,9 @@ void SrneInverter::decode_block_b1_(const uint8_t *p, size_t byte_count) {
 }
 
 void SrneInverter::decode_block_b2_(const uint8_t *p, size_t byte_count) {
-  if (byte_count < BLOCK_B2_BYTE_COUNT) return;
+  if (byte_count < REG_BLOCK_B2_MIN_COUNT * 2) return;
 
-  // Offsets from 0x0220 (this block covers 0x0220..0x0229)
+  // Offsets from 0x0220 (this block covers up to 0x0220..0x0229)
   // 0x0220-0x0222 heatsinks A/B/C (signed, x0.1), 0x0223 D (gray skip), 0x0224 PV charge I,
   // 0x0225-0x0227 unused, 0x0228 +DC bus rail, 0x0229 -DC bus rail (both x0.1, undocumented
   // but identified empirically — sum ≈ bus_voltage at 0x0212)
@@ -679,8 +722,12 @@ void SrneInverter::decode_block_b2_(const uint8_t *p, size_t byte_count) {
   this->publish_state_(this->heatsink_b_temperature_sensor_, get_i16(p, 2) * 0.1f);
   this->publish_state_(this->heatsink_c_temperature_sensor_, get_i16(p, 4) * 0.1f);
   this->publish_state_(this->pv_charge_current_sensor_, get_u16(p, 8) * 0.1f);
-  this->publish_state_(this->dc_bus_positive_voltage_sensor_, get_u16(p, 16) * 0.1f);
-  this->publish_state_(this->dc_bus_negative_voltage_sensor_, get_u16(p, 18) * 0.1f);
+  // DC bus rails are absent on smaller models (adaptive block size stops
+  // before them — see REG_BLOCK_B2_COUNT).
+  if (byte_count >= 20) {
+    this->publish_state_(this->dc_bus_positive_voltage_sensor_, get_u16(p, 16) * 0.1f);
+    this->publish_state_(this->dc_bus_negative_voltage_sensor_, get_u16(p, 18) * 0.1f);
+  }
 }
 
 void SrneInverter::decode_block_c_(const uint8_t *p, size_t byte_count) {

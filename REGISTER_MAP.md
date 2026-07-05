@@ -4,6 +4,8 @@ Subset of the V1.7 register map (`srne-hybrid-solar-inverter-modbus-protocol-v1-
 
 ## Block A — controller / PV (`0x0100`–`0x0111`, 18 regs, polled every cycle)
 
+Single-MPPT models (e.g. HSI-1500S) don't implement the PV2 registers at the tail and reject any read spanning them with Modbus exception 0x02, which fails the whole block. The component shrinks this read one register per rejection (down to `0x0100`–`0x010E`) and keeps the learned size; PV2 sensors then simply never publish and `pv_total_power` falls back to PV1 alone.
+
 | Reg | Name | Type | Mult | Unit | Sensor |
 |---|---|---|---|---|---|
 | 0x0100 | Battery SOC | u16 | 1 | % | `battery_soc` |
@@ -158,6 +160,8 @@ Polled only if `battery_type` select is configured. Per §5.2 menu item 08 of th
 Undocumented in the V1.7 PDF — identified by diffing scans before and after toggling the inverter's "AC Output Phase Mode" menu item.
 
 ### Block B2 — heatsinks + PV charge + DC bus rails (`0x0220`–`0x0229`, 10 regs)
+
+Like Block A, this read shrinks automatically (down to `0x0220`–`0x0224`) on models that reject the undocumented DC bus rail registers with Modbus exception 0x02.
 
 | Reg | Name | Type | Mult | Unit | Sensor |
 |---|---|---|---|---|---|
