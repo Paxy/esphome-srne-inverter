@@ -11,8 +11,8 @@ static const uint8_t FUNCTION_READ_HOLDING = 0x03;
 
 // Block A: controller / PV — 0x0100..0x0111 (18 regs, 36 bytes)
 static const uint16_t REG_BLOCK_A_START = 0x0100;
-static const uint16_t REG_BLOCK_A_COUNT = 0x12;
-static const uint8_t BLOCK_A_BYTE_COUNT = 0x24;
+static const uint16_t REG_BLOCK_A_COUNT = 0x10;  // HSI-1500S: reduced from 0x12
+static const uint8_t BLOCK_A_BYTE_COUNT = 0x20;  // HSI-1500S
 
 // Block B is split because at least one SRNE firmware variant silently
 // times out on reads spanning the password-protection status register at
@@ -34,8 +34,8 @@ static const uint8_t BLOCK_B1_BYTE_COUNT = 0x1C;
 // 0x0228 and 0x0229 are undocumented but the register-space scan showed they
 // hold the positive/negative DC bus rail voltages (sum ≈ bus_voltage at 0x0212).
 static const uint16_t REG_BLOCK_B2_START = 0x0220;
-static const uint16_t REG_BLOCK_B2_COUNT = 0x0A;
-static const uint8_t BLOCK_B2_BYTE_COUNT = 0x14;
+static const uint16_t REG_BLOCK_B2_COUNT = 0x08;  // HSI-1500S: reduced from 0x0A
+static const uint8_t BLOCK_B2_BYTE_COUNT = 0x10;  // HSI-1500S
 
 // Block B3: L2 (split-phase / parallel-120 second-leg) data — 0x022A..0x0236
 // PDF marks these "specific machine models", and on this inverter they only
@@ -589,7 +589,7 @@ void SrneInverter::on_modbus_data(const std::vector<uint8_t> &data) {
   // the next F1/F2/F3 read (≤5 min away) is the authoritative re-sync.
 }
 
-void SrneInverter::decode_block_a_(const uint8_t *p, size_t /*byte_count*/) {
+void SrneInverter::decode_block_a_(const uint8_t *p, size_t byte_count) {
   // Layout (each register is 2 bytes; offset = (reg - 0x0100) * 2)
   // 0x0100 SOC | 0x0101 V x0.1 | 0x0102 I x0.1 signed | ...
   this->publish_state_(this->battery_soc_sensor_, (float) get_u16(p, 0));
@@ -612,11 +612,13 @@ void SrneInverter::decode_block_a_(const uint8_t *p, size_t /*byte_count*/) {
   // 0x010C-0x010D fault msg (skip), 0x010E charge_power
   this->publish_state_(this->charge_power_sensor_, (float) get_u16(p, 28));
   // 0x010F PV2 V, 0x0110 PV2 I, 0x0111 PV2 W
+  if (byte_count >= 36) {
   this->publish_state_(this->pv2_voltage_sensor_, get_u16(p, 30) * 0.1f);
   this->publish_state_(this->pv2_current_sensor_, get_u16(p, 32) * 0.1f);
   uint16_t pv2_w = get_u16(p, 34);
   this->publish_state_(this->pv2_power_sensor_, (float) pv2_w);
   this->publish_state_(this->pv_total_power_sensor_, (float) (pv1_w + pv2_w));
+  }
 }
 
 void SrneInverter::decode_block_b0_(const uint8_t *p, size_t byte_count) {
@@ -679,8 +681,10 @@ void SrneInverter::decode_block_b2_(const uint8_t *p, size_t byte_count) {
   this->publish_state_(this->heatsink_b_temperature_sensor_, get_i16(p, 2) * 0.1f);
   this->publish_state_(this->heatsink_c_temperature_sensor_, get_i16(p, 4) * 0.1f);
   this->publish_state_(this->pv_charge_current_sensor_, get_u16(p, 8) * 0.1f);
+  if (byte_count >= 20) {
   this->publish_state_(this->dc_bus_positive_voltage_sensor_, get_u16(p, 16) * 0.1f);
   this->publish_state_(this->dc_bus_negative_voltage_sensor_, get_u16(p, 18) * 0.1f);
+  }
 }
 
 void SrneInverter::decode_block_c_(const uint8_t *p, size_t byte_count) {

@@ -1,0 +1,264 @@
+# ============================================================================
+# SRNE HSI-1500S — ESPHome Configuration (fixed component)
+# ============================================================================
+# Uses a locally patched copy of RAR/esphome-srne-inverter with corrected
+# Modbus block sizes matching HSI-1500S register map.
+#
+# Patches applied to srne_inverter.cpp:
+#   1. Block A: 0x12 (18 regs) → 0x10 (16 regs)  [0x0110+ don't exist]
+#   2. Block B2: 0x0A (10 regs) → 0x08 (8 regs)  [0x0228+ don't exist]
+#   3. Guard PV2 reads with byte_count >= 36
+#   4. Guard DC bus reads with byte_count >= 20
+#
+# Battery: 12V LFP (4S, nominal 12.8V)
+# PV: Single MPPT, Single Phase 230V/50Hz
+# ============================================================================
+
+substitutions:
+  name: srne-hsi1500s
+  device_description: "SRNE HSI-1500S 1.5KW Hybrid Inverter"
+  tx_pin: GPIO16
+  rx_pin: GPIO17
+
+esphome:
+  name: ${name}
+  comment: ${device_description}
+  min_version: 2024.6.0
+  project:
+    name: "rar.esphome-srne-inverter"
+    version: 1.0.0
+
+esp32:
+  variant: esp32
+  flash_size: 4MB
+  framework:
+    type: arduino  # Use arduino for faster builds (the component uses Arduino)
+
+# Load the locally patched component
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [srne_modbus, srne_inverter]
+
+logger:
+  baud_rate: 0
+
+api:
+  encryption:
+    key: "W4/24v8jJDKPGCchtfi0L7lXjwRMDHvXrKRsi6vDb6w="
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+uart:
+  id: uart_0
+  baud_rate: 9600
+  tx_pin: ${tx_pin}
+  rx_pin: ${rx_pin}
+  rx_buffer_size: 256
+
+srne_modbus:
+  id: modbus0
+  uart_id: uart_0
+
+srne_inverter:
+  id: inv0
+  srne_modbus_id: modbus0
+  address: 0x01
+  update_interval: 10s
+
+# ============================================================================
+# BINARY SENSORS
+# ============================================================================
+binary_sensor:
+  - platform: status
+    name: "SRNE Monitor Status"
+
+  - platform: srne_inverter
+    srne_inverter_id: inv0
+    online_status:
+      name: "Inverter Online"
+    grid_present:
+      name: "Grid Present"
+    inverter_on_load:
+      name: "Inverter On Load"
+    fault:
+      name: "Inverter Fault"
+
+# ============================================================================
+# SENSORS
+# ============================================================================
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 60s
+
+  - platform: srne_inverter
+    srne_inverter_id: inv0
+
+    # ── Battery ────────────────────────────────────────────────────────────
+    battery_soc:
+      name: "Battery SOC"
+    battery_voltage:
+      name: "Battery Voltage"
+    battery_current:
+      name: "Battery Current"
+    battery_power:
+      name: "Battery Power"
+
+    # ── PV / Solar (single MPPT only) ──────────────────────────────────────
+    pv1_voltage:  { name: "PV Voltage" }
+    pv1_current:  { name: "PV Current" }
+    pv1_power:    { name: "PV Power" }
+    pv_total_power:
+      name: "PV Total Power"
+    pv_charge_current: { name: "PV Charge Current" }
+    charge_power:
+      name: "Charge Power"
+
+    # ── Grid / Inverter / Load ──────────────────────────────────────────────
+    bus_voltage:
+      name: "Bus Voltage"
+      entity_category: diagnostic
+    grid_voltage:
+      name: "Grid Voltage"
+    grid_current:
+      name: "Grid Current"
+    grid_frequency:
+      name: "Grid Frequency"
+    inverter_voltage:
+      name: "Inverter Voltage"
+    inverter_current:
+      name: "Inverter Current"
+    inverter_frequency:
+      name: "Inverter Frequency"
+    load_current:
+      name: "Load Current"
+    load_active_power:
+      name: "Load Power"
+    load_apparent_power:
+      name: "Load Apparent Power"
+    load_percent:
+      name: "Load Percent"
+    battery_charge_current:
+      name: "Mains Charge Current"
+
+    # ── Temperatures ───────────────────────────────────────────────────────
+    heatsink_a_temperature:
+      name: "Heatsink A Temp"
+      entity_category: diagnostic
+    heatsink_b_temperature:
+      name: "Heatsink B Temp"
+      entity_category: diagnostic
+    heatsink_c_temperature:
+      name: "Heatsink C Temp"
+      entity_category: diagnostic
+
+    # ══ REMOVED (not on HSI-1500S single-phase/single-MPPT) ══
+    # pv2_voltage, pv2_current, pv2_power       → ERROR 0x02
+    # dc_bus_positive_voltage, dc_bus_negative   → ERROR 0x02
+    # inverter_voltage_l2, inverter_current_l2   → ERROR 0x02
+    # load_current_l2, load_active_power_l2, etc → ERROR 0x02
+    # inverter_voltage_l1_l2, load_*_total       → ERROR 0x02
+
+# ============================================================================
+# TEXT SENSORS
+# ============================================================================
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+    ssid:
+      name: "Connected SSID"
+
+  - platform: version
+    name: "ESPHome Version"
+
+  - platform: srne_inverter
+    srne_inverter_id: inv0
+    machine_state:
+      name: "Machine State"
+      entity_category: diagnostic
+    charge_state:
+      name: "Charge State"
+      entity_category: diagnostic
+    fault_codes:
+      name: "Fault Codes"
+      entity_category: diagnostic
+    software_version:
+      name: "Inverter Firmware"
+      entity_category: diagnostic
+    hardware_version:
+      name: "Inverter Hardware"
+      entity_category: diagnostic
+    serial_number:
+      name: "Inverter Serial"
+      entity_category: diagnostic
+    battery_type:
+      name: "Battery Type"
+      entity_category: diagnostic
+
+# ============================================================================
+# SWITCHES
+# ============================================================================
+switch:
+  - platform: restart
+    name: "Restart"
+
+  - platform: srne_inverter
+    srne_inverter_id: inv0
+    eco_mode:
+      name: "Eco Mode"
+    overload_auto_restart:
+      name: "Overload Auto Restart"
+    overheat_auto_restart:
+      name: "Overheat Auto Restart"
+    buzzer_alarm:
+      name: "Buzzer Alarm"
+    inverter_to_bypass:
+      name: "Inverter to Bypass"
+
+# ============================================================================
+# SELECT
+# ============================================================================
+select:
+  - platform: srne_inverter
+    srne_inverter_id: inv0
+    output_priority:
+      name: "Output Priority"
+    charge_priority:
+      name: "Charge Priority"
+    ac_input_voltage_range:
+      name: "AC Input Voltage Range"
+
+# ============================================================================
+# NUMBER
+# ============================================================================
+number:
+  - platform: srne_inverter
+    srne_inverter_id: inv0
+    max_charge_current:
+      name: "Max Charge Current"
+    mains_charge_current_limit:
+      name: "Mains Charge Current Limit"
+    output_voltage:
+      name: "Output Voltage"
+    soc_discharge_alarm:
+      name: "SOC Discharge Alarm"
+    soc_discharge_cutoff:
+      name: "SOC Discharge Cutoff"
+    soc_charge_cutoff:
+      name: "SOC Charge Cutoff"
+    soc_switch_to_mains:
+      name: "SOC Switch to Mains"
+    soc_switch_to_inverter:
+      name: "SOC Switch to Inverter"
